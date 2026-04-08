@@ -13,6 +13,33 @@ const PUBLIC_API_PREFIXES = [
 ];
 
 /**
+ * XXIV routes that require authentication.
+ * Unauthenticated visitors are redirected to /login.
+ */
+const XXIV_PROTECTED_ROUTES = [
+  '/dashboard',
+  '/sites',
+];
+
+/**
+ * XXIV public routes — logged-in users visiting these are redirected to /dashboard.
+ */
+const XXIV_AUTH_ROUTES = [
+  '/login',
+  '/signup',
+];
+
+/**
+ * XXIV routes that are always public (no redirect for any user state).
+ */
+const XXIV_PUBLIC_ROUTES = [
+  '/forgot-password',
+  '/update-password',
+  '/auth/callback',
+  '/templates',
+];
+
+/**
  * Patterns for collection item endpoints that must be accessible on published pages
  * (load-more pagination, filter). Matched via regex since the collection ID is dynamic.
  */
@@ -107,8 +134,40 @@ async function verifyApiAuth(request: NextRequest): Promise<NextResponse | null>
   return null;
 }
 
+/**
+ * Get authenticated user for XXIV route protection.
+ * Returns the user object or null. Uses same env-var config as verifyApiAuth.
+ */
+async function getXxivUser(request: NextRequest): Promise<{ id: string } | null> {
+  const config = getSupabaseEnvConfig();
+  if (!config) return null;
+
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient(config.url, config.anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const origin = request.nextUrl.origin;
 
   // MCP endpoint uses its own token-based authentication — skip session auth.
   // Cloud overlay proxies MUST also exempt this path to avoid login redirects.
@@ -116,6 +175,33 @@ export async function proxy(request: NextRequest) {
     const response = NextResponse.next();
     response.headers.set('x-pathname', pathname);
     return response;
+  }
+
+  // ── XXIV special: /ycode/welcome always redirects to /dashboard ──────────
+  if (pathname === '/ycode/welcome') {
+    return NextResponse.redirect(new URL('/dashboard', origin));
+  }
+
+  // ── XXIV route protection ─────────────────────────────────────────────────
+  const isXxivProtected = XXIV_PROTECTED_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route + '/')
+  );
+  const isXxivAuthRoute = XXIV_AUTH_ROUTES.includes(pathname);
+
+  if (isXxivProtected || isXxivAuthRoute) {
+    const user = await getXxivUser(request);
+
+    if (isXxivProtected && !user) {
+      // Not logged in → redirect to login, preserve intended destination
+      const loginUrl = new URL('/login', origin);
+      loginUrl.searchParams.set('next', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    if (isXxivAuthRoute && user) {
+      // Already logged in → no need to see login/signup
+      return NextResponse.redirect(new URL('/dashboard', origin));
+    }
   }
 
   // Protect API and preview routes with auth
