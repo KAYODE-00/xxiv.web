@@ -147,20 +147,32 @@ export async function PUT(
         break;
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        const isDuplicate = msg.includes('duplicate key value violates unique constraint');
+        const isDuplicate = msg.includes('duplicate key value violates unique constraint') || msg.includes('pages_slug_is_published');
         const canRetrySlug =
-          !!xxivSiteId &&
+          (!!xxivSiteId || true) && // Allow retry for all modes now
           isDuplicate &&
           typeof updatePayload.slug === 'string' &&
           updatePayload.slug.trim() !== '' &&
-          attempt < 4;
+          !isErrorPage &&
+          !isIndexPage &&
+          !isDynamicPage &&
+          attempt < 5;
 
         if (!canRetrySlug) {
+          // Provide a more user-friendly error message for duplicate slug errors
+          if (isDuplicate) {
+            return noCache(
+              {
+                error: `A page with the name "${updatePayload.slug}" already exists in this ${updatePayload.page_folder_id ? 'folder' : 'location'}. Please use a different name.`
+              },
+              409
+            );
+          }
           throw error;
         }
 
         attempt += 1;
-        updatePayload.slug = `${updatePayload.slug}-${attempt + 1}`;
+        updatePayload.slug = `${updatePayload.slug}-${attempt}`;
       }
     }
 
@@ -170,9 +182,16 @@ export async function PUT(
   } catch (error) {
     console.error('Failed to update page:', error);
 
+    const msg = error instanceof Error ? error.message : 'Failed to update page';
+    const isDuplicateError = msg.includes('duplicate key value violates unique constraint') || msg.includes('pages_slug_is_published');
+
     return noCache(
-      { error: error instanceof Error ? error.message : 'Failed to update page' },
-      500
+      {
+        error: isDuplicateError
+          ? 'A page with this name already exists. Please use a different name.'
+          : msg
+      },
+      isDuplicateError ? 409 : 500
     );
   }
 }
