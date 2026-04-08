@@ -7,6 +7,15 @@ import { noCache } from '@/lib/api-response';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function stripXxivSlugSuffix(slug: string, siteId: string): string {
+  const suffix = `-${siteId.slice(0, 8)}`;
+  if (typeof slug !== 'string') return slug as any;
+  if (slug.endsWith(suffix)) {
+    return slug.slice(0, -suffix.length);
+  }
+  return slug;
+}
+
 /**
  * GET /ycode/api/pages
  *
@@ -24,6 +33,7 @@ export async function GET(request: NextRequest) {
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const filters: Record<string, any> = {};
+    const xxivSiteId = searchParams.get('xxiv_site_id');
 
     // Default to draft pages if no is_published filter specified
     const isPublished = searchParams.get('is_published');
@@ -46,9 +56,14 @@ export async function GET(request: NextRequest) {
     }
 
     const pages = await getAllPages(filters);
+    const filteredPages = xxivSiteId
+      ? pages
+        .filter((p: any) => p?.settings?.xxiv?.site_id === xxivSiteId)
+        .map((p: any) => ({ ...p, slug: stripXxivSlugSuffix(p.slug, xxivSiteId) }))
+      : pages;
 
     return noCache({
-      data: pages,
+      data: filteredPages,
     });
   } catch (error) {
     console.error('[GET /ycode/api/pages] Error:', error);
@@ -69,6 +84,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const xxivSiteId = searchParams.get('xxiv_site_id');
     const body = await request.json();
 
     const {
@@ -134,19 +151,54 @@ export async function POST(request: NextRequest) {
     const { incrementSiblingOrders } = await import('@/lib/services/pageService');
     await incrementSiblingOrders(order, depth, normalizedPageFolderId);
 
-    // Create page
-    const page = await createPage({
-      name,
-      slug: finalSlug,
-      is_published,
-      page_folder_id: normalizedPageFolderId,
-      order,
-      depth,
-      is_index,
-      is_dynamic,
-      error_page,
-      settings,
-    });
+    // In XXIV scoped mode, tag page ownership and namespace slugs
+    // to avoid cross-site unique-constraint collisions in root folder.
+    const scopedSettings = xxivSiteId
+      ? {
+        ...(settings || {}),
+        xxiv: {
+          ...((settings as any)?.xxiv || {}),
+          site_id: xxivSiteId,
+        },
+      }
+      : settings;
+
+    const slugSuffix = xxivSiteId ? `-${xxivSiteId.slice(0, 8)}` : '';
+    const baseScopedSlug =
+      finalSlug && slugSuffix && !finalSlug.endsWith(slugSuffix)
+        ? `${finalSlug}${slugSuffix}`
+        : finalSlug;
+
+    let page;
+    let attempt = 0;
+    while (true) {
+      const candidateSlug = attempt === 0 || !xxivSiteId
+        ? baseScopedSlug
+        : `${baseScopedSlug}-${attempt + 1}`;
+
+      try {
+        page = await createPage({
+          name,
+          slug: candidateSlug,
+          is_published,
+          page_folder_id: normalizedPageFolderId,
+          order,
+          depth,
+          is_index,
+          is_dynamic,
+          error_page,
+          settings: scopedSettings,
+        });
+        break;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const isDuplicate = msg.includes('duplicate key value violates unique constraint');
+        if (!xxivSiteId || !isDuplicate || attempt >= 4) {
+          throw e;
+        }
+        attempt += 1;
+      }
+    }
 
     // Create initial draft with Body container
     const bodyLayer = {
@@ -159,7 +211,7 @@ export async function POST(request: NextRequest) {
     await upsertDraftLayers(page.id, [bodyLayer]);
 
     return noCache({
-      data: page,
+      data: xxivSiteId ? { ...page, slug: stripXxivSlugSuffix(page.slug, xxivSiteId) } : page,
     });
   } catch (error) {
     console.error('[POST /ycode/api/pages] Error:', error);

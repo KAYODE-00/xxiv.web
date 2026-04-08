@@ -5,6 +5,7 @@ import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
 import { getSettingsByKeys } from '@/lib/repositories/settingsRepository';
 import { generateColorVariablesCss } from '@/lib/repositories/colorVariableRepository';
+import { cookies } from 'next/headers';
 
 import { generatePageMetadata } from '@/lib/generate-page-metadata';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
@@ -24,9 +25,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
+  const cookieStore = await cookies();
+  const xxivSiteId = cookieStore.get('xxiv_site_id')?.value || undefined;
 
   // Fetch draft page and layers data (no caching)
-  const data = await fetchPageByPath(slugPath, false);
+  const data = await fetchPageByPath(slugPath, false, undefined, undefined, xxivSiteId);
 
   // Fetch draft CSS and color variables
   const [draftCSS, colorVariablesCss] = await Promise.all([
@@ -131,9 +134,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
+  const cookieStore = await cookies();
+  const xxivSiteId = cookieStore.get('xxiv_site_id')?.value || undefined;
 
   // Fetch draft page to get name and SEO settings
-  const data = await fetchPageByPath(slugPath, false);
+  const data = await fetchPageByPath(slugPath, false, undefined, undefined, xxivSiteId);
 
   if (!data) {
     return {

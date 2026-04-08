@@ -33,19 +33,6 @@ export async function createSite(formData: FormData) {
     throw new Error('Site name is required');
   }
 
-  // Check plan limits
-  const { count, error: countError } = await supabase
-    .from('xxiv_sites')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id);
-
-  if (countError) throw countError;
-
-  // Free plan: max 1 site
-  if ((count || 0) >= 1) {
-    throw new Error('PLAN_LIMIT: Upgrade to create more sites');
-  }
-
   // Generate unique slug
   const baseSlug = name
     .toLowerCase()
@@ -54,35 +41,40 @@ export async function createSite(formData: FormData) {
     .slice(0, 40);
   const slug = `${baseSlug}-${Date.now().toString(36)}`;
 
-  // Create page_folder in Ycode
-  const { data: folder, error: folderError } = await admin
-    .from('page_folders')
+  // Create XXIV site record first (so we can tag pages with xxiv_site_id)
+  const { data: site, error: siteError } = await supabase
+    .from('xxiv_sites')
     .insert({
-      name: name,
-      slug: slug,
-      depth: 0,
-      order: 0,
+      name,
+      slug,
+      user_id: user.id,
+      plan: 'free', // dev default
+      page_folder_id: null,
+      home_page_id: null,
       is_published: false,
-      settings: {},
     })
     .select()
     .single();
 
-  if (folderError) throw folderError;
+  if (siteError) throw siteError;
 
-  // Create home page in Ycode
+  // Create home page in Ycode (no folder)
   const { data: page, error: pageError } = await admin
     .from('pages')
     .insert({
       name: 'Home',
-      slug: 'home',
-      page_folder_id: folder.id,
-      is_index: true,
+      slug: `home-${site.id.slice(0, 8)}`,
+      page_folder_id: null,
+      is_index: false,
       is_dynamic: false,
       depth: 0,
       order: 0,
       is_published: false,
-      settings: {},
+      settings: {
+        xxiv: {
+          site_id: site.id,
+        },
+      },
     })
     .select()
     .single();
@@ -96,28 +88,22 @@ export async function createSite(formData: FormData) {
     is_published: false,
   });
 
-  // Create XXIV site record
-  const { data: site, error: siteError } = await supabase
+  // Update XXIV site with home page
+  const { error: updateSiteError } = await supabase
     .from('xxiv_sites')
-    .insert({
-      name,
-      slug,
-      user_id: user.id,
-      plan: 'free',
-      page_folder_id: folder.id,
+    .update({
       home_page_id: page.id,
-      is_published: false,
+      updated_at: new Date().toISOString(),
     })
-    .select()
-    .single();
+    .eq('id', site.id);
 
-  if (siteError) throw siteError;
+  if (updateSiteError) throw updateSiteError;
 
   // Keep dashboard list fresh if user navigates back
   revalidatePath('/dashboard');
 
   // Go directly to Ycode editor
-  redirect('/ycode/pages/' + site.home_page_id);
+  redirect('/ycode/pages/' + page.id + '?xxiv_site_id=' + site.id);
 }
 
 export async function deleteSite(siteId: string) {
@@ -140,16 +126,19 @@ export async function deleteSite(siteId: string) {
   if (siteError) throw siteError;
   if (!site) throw new Error('Site not found');
 
-  // Delete Ycode pages and layers
-  if (site.home_page_id) {
-    await admin.from('page_layers').delete().eq('page_id', site.home_page_id);
+  // Delete all Ycode pages belonging to this site (tagged in settings)
+  const { data: pages, error: pagesError } = await admin
+    .from('pages')
+    .select('id')
+    .eq('is_published', false)
+    .contains('settings', { xxiv: { site_id: siteId } });
 
-    await admin.from('pages').delete().eq('page_folder_id', site.page_folder_id);
-  }
+  if (pagesError) throw pagesError;
 
-  // Delete page folder
-  if (site.page_folder_id) {
-    await admin.from('page_folders').delete().eq('id', site.page_folder_id);
+  const pageIds = (pages || []).map((p) => p.id);
+  if (pageIds.length > 0) {
+    await admin.from('page_layers').delete().in('page_id', pageIds);
+    await admin.from('pages').delete().in('id', pageIds);
   }
 
   // Delete XXIV site (RLS enforces ownership)
@@ -176,5 +165,5 @@ export async function openSiteEditor(siteId: string) {
     throw new Error('No page found for this site');
   }
 
-  redirect('/ycode/pages/' + site.home_page_id);
+  redirect('/ycode/pages/' + site.home_page_id + '?xxiv_site_id=' + siteId);
 }

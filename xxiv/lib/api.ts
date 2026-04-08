@@ -11,6 +11,12 @@ import type { CollectionUsageResult, CollectionFieldUsageResult } from '@/lib/co
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
 
+function getXxivSiteQuery(): string {
+  if (typeof window === 'undefined') return '';
+  const siteId = new URLSearchParams(window.location.search).get('xxiv_site_id');
+  return siteId ? `xxiv_site_id=${encodeURIComponent(siteId)}` : '';
+}
+
 // Get Supabase auth token
 async function getAuthToken(): Promise<string | null> {
   // TODO: Get from Supabase client when implemented
@@ -73,7 +79,8 @@ async function apiRequest<T>(
 export const pagesApi = {
   // Get all pages
   async getAll(): Promise<ApiResponse<Page[]>> {
-    return apiRequest<Page[]>('/ycode/api/pages');
+    const q = getXxivSiteQuery();
+    return apiRequest<Page[]>(`/ycode/api/pages${q ? `?${q}` : ''}`);
   },
 
   // Get page by ID
@@ -93,7 +100,8 @@ export const pagesApi = {
 
   // Create new page
   async create(page: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>): Promise<ApiResponse<Page>> {
-    return apiRequest<Page>('/ycode/api/pages', {
+    const q = getXxivSiteQuery();
+    return apiRequest<Page>(`/ycode/api/pages${q ? `?${q}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(page),
     });
@@ -101,7 +109,8 @@ export const pagesApi = {
 
   // Update page
   async update(id: string, page: Partial<Page>): Promise<ApiResponse<Page>> {
-    return apiRequest<Page>(`/ycode/api/pages/${id}`, {
+    const q = getXxivSiteQuery();
+    return apiRequest<Page>(`/ycode/api/pages/${id}${q ? `?${q}` : ''}`, {
       method: 'PUT',
       body: JSON.stringify(page),
     });
@@ -709,7 +718,15 @@ export const editorApi = {
     assetFolders: AssetFolder[];
     fonts: Font[];
   }>> {
-    return apiRequest('/ycode/api/editor/init');
+    // Optional XXIV scoping: limit editor data to a specific site folder.
+    // If omitted, editor loads all data (default Ycode behavior).
+    const siteId =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('xxiv_site_id')
+        : null;
+
+    const qs = siteId ? `?xxiv_site_id=${encodeURIComponent(siteId)}` : '';
+    return apiRequest(`/ycode/api/editor/init${qs}`);
   },
 };
 

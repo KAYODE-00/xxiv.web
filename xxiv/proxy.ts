@@ -168,6 +168,7 @@ async function getXxivUser(request: NextRequest): Promise<{ id: string } | null>
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const origin = request.nextUrl.origin;
+  const xxivSiteId = request.nextUrl.searchParams.get('xxiv_site_id');
 
   // MCP endpoint uses its own token-based authentication — skip session auth.
   // Cloud overlay proxies MUST also exempt this path to avoid login redirects.
@@ -233,6 +234,15 @@ export async function proxy(request: NextRequest) {
 
   // Create response
   const response = NextResponse.next();
+
+  // Persist current XXIV site context for clean preview URLs.
+  if (pathname.startsWith('/ycode') && xxivSiteId) {
+    response.cookies.set('xxiv_site_id', xxivSiteId, {
+      path: '/',
+      httpOnly: false,
+      sameSite: 'lax',
+    });
+  }
 
   // Add pathname header for layout to determine dark mode
   response.headers.set('x-pathname', pathname);

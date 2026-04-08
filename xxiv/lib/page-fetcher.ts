@@ -269,7 +269,8 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
   slugPath: string,
   isPublished: boolean,
   paginationContext?: PaginationContext,
-  tenantId?: string
+  tenantId?: string,
+  xxivSiteId?: string
 ): Promise<PageData | null> {
   try {
     const supabase = await getSupabaseAdmin(tenantId);
@@ -317,6 +318,16 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
       return null;
     }
 
+    const scopedPages = xxivSiteId
+      ? pages.filter((p: any) => p?.settings?.xxiv?.site_id === xxivSiteId)
+      : pages;
+
+    const stripXxivSuffix = (slug: string) => {
+      if (!xxivSiteId || typeof slug !== 'string') return slug;
+      const suffix = `-${xxivSiteId.slice(0, 8)}`;
+      return slug.endsWith(suffix) ? slug.slice(0, -suffix.length) : slug;
+    };
+
     const targetPath = pathWithoutLocale;
 
     // If path is empty after locale detection (e.g., "/fr/" -> "fr" -> ""),
@@ -353,7 +364,7 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
 
     // First, try to find an exact match (non-dynamic page)
     // Use translated slug matching if translations are available
-    let matchingPage = pages.find((page: Page) => {
+    let matchingPage = scopedPages.find((page: Page) => {
       if (page.is_dynamic) return false; // Skip dynamic pages for exact match
 
       // If we have translations, match using translated slugs
@@ -362,14 +373,14 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
       }
 
       // Otherwise, use default slug matching
-      const fullPath = buildSlugPath(page, folders as PageFolder[], 'page');
+      const fullPath = buildSlugPath({ ...page, slug: stripXxivSuffix(page.slug) } as Page, folders as PageFolder[], 'page');
       return fullPath === `/${targetPath}`;
     });
 
     // If no exact match, try dynamic pages
     if (!matchingPage) {
       // Find all dynamic pages and check if URL matches their pattern
-      const dynamicPages = pages.filter((page: Page) => page.is_dynamic);
+      const dynamicPages = scopedPages.filter((page: Page) => page.is_dynamic);
 
       for (const dynamicPage of dynamicPages) {
         let extractedSlug: string | null = null;

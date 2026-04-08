@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAllDraftPages } from '@/lib/repositories/pageRepository';
 import { getAllDraftLayers } from '@/lib/repositories/pageLayersRepository';
 import { getAllPageFolders } from '@/lib/repositories/pageFolderRepository';
@@ -11,6 +11,31 @@ import { getAllAssets } from '@/lib/repositories/assetRepository';
 import { getAllAssetFolders } from '@/lib/repositories/assetFolderRepository';
 import { getAllFonts } from '@/lib/repositories/fontRepository';
 import { getMapboxAccessToken, getGoogleMapsEmbedApiKey } from '@/lib/map-server';
+import { createServerClient } from '@supabase/ssr';
+
+function getSupabaseEnvConfig(): { url: string; anonKey: string } | null {
+  const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
+  const connectionUrl = process.env.SUPABASE_CONNECTION_URL;
+  if (!anonKey || !connectionUrl) return null;
+  const match = connectionUrl.match(/\/\/postgres\.([a-z0-9]+):/);
+  if (!match) return null;
+  return { url: `https://${match[1]}.supabase.co`, anonKey };
+}
+
+function pageBelongsToXxivSite(page: any, siteId: string) {
+  const settings = page?.settings;
+  const tagged = settings?.xxiv?.site_id;
+  return typeof tagged === 'string' && tagged === siteId;
+}
+
+function stripXxivSlugSuffix(slug: string, siteId: string): string {
+  const suffix = `-${siteId.slice(0, 8)}`;
+  if (typeof slug !== 'string') return slug as any;
+  if (slug.endsWith(suffix)) {
+    return slug.slice(0, -suffix.length);
+  }
+  return slug;
+}
 
 /**
  * GET /ycode/api/editor/init
@@ -27,8 +52,11 @@ import { getMapboxAccessToken, getGoogleMapsEmbedApiKey } from '@/lib/map-server
  * - All asset folders
  * - All fonts
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const xxivSiteId = searchParams.get('xxiv_site_id');
+
     // Load all data in parallel (only drafts for editor)
     const [pages, drafts, folders, components, styles, settings, collections, locales, assets, assetFolders, fonts, resolvedMapboxToken, resolvedGoogleMapsEmbedKey] = await Promise.all([
       getAllDraftPages(),
@@ -45,6 +73,82 @@ export async function GET() {
       getMapboxAccessToken(),
       getGoogleMapsEmbedApiKey(),
     ]);
+
+    // Optional XXIV scoping: when a site is provided, limit the builder data
+    // (pages/layers) to pages tagged with settings.xxiv.site_id = siteId.
+    if (xxivSiteId) {
+      const config = getSupabaseEnvConfig();
+      if (!config) {
+        return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+      }
+
+      // Verify user session and site ownership via RLS.
+      const supabase = createServerClient(config.url, config.anonKey, {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          },
+        },
+      });
+
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
+
+      const { data: site, error: siteError } = await supabase
+        .from('xxiv_sites')
+        .select('id')
+        .eq('id', xxivSiteId)
+        .single();
+
+      if (siteError || !site?.id) {
+        return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+      }
+
+      const scopedPages = (pages || [])
+        .filter((p) => pageBelongsToXxivSite(p, xxivSiteId))
+        .map((p) => ({ ...p, slug: stripXxivSlugSuffix((p as any).slug, xxivSiteId) }));
+      const allowedPageIds = new Set(scopedPages.map((p) => p.id));
+      const scopedDrafts = (drafts || []).filter((d) => allowedPageIds.has(d.page_id));
+
+      // Reuse token-injection logic for scoped responses too.
+      const enrichedSettings = [...settings];
+      const injectedTokens: [string, string, string | null][] = [
+        ['app:mapbox:access_token', 'mapbox_access_token', resolvedMapboxToken],
+        ['app:google-maps-embed:api_key', 'google_maps_embed_api_key', resolvedGoogleMapsEmbedKey],
+      ];
+      for (const [id, key, value] of injectedTokens) {
+        if (value) {
+          enrichedSettings.push({
+            id,
+            key,
+            value,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      return NextResponse.json({
+        data: {
+          pages: scopedPages,
+          drafts: scopedDrafts,
+          folders: [], // XXIV sites do not use page_folders
+          components,
+          styles,
+          settings: enrichedSettings,
+          collections,
+          locales,
+          assets,
+          assetFolders,
+          fonts,
+        },
+      });
+    }
 
     // Inject app-sourced tokens into settings so they're available via settingsByKey
     const enrichedSettings = [...settings];
