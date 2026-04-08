@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useEditorStore } from '../stores/useEditorStore';
 import { usePagesStore } from '../stores/usePagesStore';
 import { useCollaborationPresenceStore } from '../stores/useCollaborationPresenceStore';
 import { createClient } from '@/lib/supabase-browser';
+import { scopedCollaborationChannel } from '@/lib/xxiv/realtime-namespace';
 import { debounce } from '../lib/collaboration-utils';
 import type { Page } from '../types';
 
@@ -25,6 +27,7 @@ interface UseLivePageUpdatesReturn {
 
 export function useLivePageUpdates(): UseLivePageUpdatesReturn {
   const { user } = useAuthStore();
+  const xxivCollaborationSiteId = useEditorStore((state) => state.xxivCollaborationSiteId);
   const {
     loadPages,
     addPage,
@@ -74,7 +77,12 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
     const initializeChannel = async () => {
       try {
         const supabase = await createClient();
-        const channel = supabase.channel('pages:updates');
+        const channelName = scopedCollaborationChannel(
+          'pages:updates',
+          xxivCollaborationSiteId,
+          user.id,
+        );
+        const channel = supabase.channel(channelName);
 
         // Listen for page updates
         channel.on('broadcast', { event: 'page_update' }, (payload) => {
@@ -113,7 +121,7 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
       isReceivingUpdates.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers are stable refs, adding would cause reconnect loops
-  }, [user]);
+  }, [user, xxivCollaborationSiteId]);
 
   const handleIncomingPageUpdate = useCallback((update: PageUpdate) => {
     // Get fresh current user ID from store
@@ -139,6 +147,14 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
     const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
 
     if (!freshCurrentUserId) {
+      return;
+    }
+
+    const scopeSite = useEditorStore.getState().xxivCollaborationSiteId;
+    const pageSite = (page.settings as { xxiv?: { site_id?: string } } | undefined)?.xxiv?.site_id;
+    if (scopeSite) {
+      if (pageSite !== scopeSite) return;
+    } else if (pageSite) {
       return;
     }
 

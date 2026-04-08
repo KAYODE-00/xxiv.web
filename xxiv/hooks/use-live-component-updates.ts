@@ -8,10 +8,12 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useEditorStore } from '../stores/useEditorStore';
 import { useComponentsStore } from '../stores/useComponentsStore';
 import { useCollaborationPresenceStore } from '../stores/useCollaborationPresenceStore';
 import { usePagesStore } from '../stores/usePagesStore';
 import { createClient } from '@/lib/supabase-browser';
+import { scopedCollaborationChannel } from '@/lib/xxiv/realtime-namespace';
 import type { Component, Layer } from '../types';
 
 // Types for component updates
@@ -32,6 +34,7 @@ export interface UseLiveComponentUpdatesReturn {
 
 export function useLiveComponentUpdates(): UseLiveComponentUpdatesReturn {
   const { user } = useAuthStore();
+  const xxivCollaborationSiteId = useEditorStore((state) => state.xxivCollaborationSiteId);
   const updateUser = useCollaborationPresenceStore((state) => state.updateUser);
   const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
   
@@ -47,7 +50,12 @@ export function useLiveComponentUpdates(): UseLiveComponentUpdatesReturn {
     const initializeChannel = async () => {
       try {
         const supabase = await createClient();
-        const channel = supabase.channel('components:updates');
+        const channelName = scopedCollaborationChannel(
+          'components:updates',
+          xxivCollaborationSiteId,
+          user.id,
+        );
+        const channel = supabase.channel(channelName);
         
         // Listen for component events
         channel.on('broadcast', { event: 'component_created' }, (payload) => {
@@ -90,7 +98,7 @@ export function useLiveComponentUpdates(): UseLiveComponentUpdatesReturn {
       isConnectedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, user?.id, xxivCollaborationSiteId]);
   
   // === INCOMING HANDLERS ===
   

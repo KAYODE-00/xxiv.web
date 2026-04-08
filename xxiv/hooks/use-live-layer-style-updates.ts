@@ -8,9 +8,11 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useEditorStore } from '../stores/useEditorStore';
 import { useLayerStylesStore } from '../stores/useLayerStylesStore';
 import { useCollaborationPresenceStore } from '../stores/useCollaborationPresenceStore';
 import { createClient } from '@/lib/supabase-browser';
+import { scopedCollaborationChannel } from '@/lib/xxiv/realtime-namespace';
 import { detachStyleAcrossStores, updateStyleAcrossStores } from '../lib/layer-style-store-utils';
 import type { LayerStyle } from '../types';
 
@@ -31,6 +33,7 @@ export interface UseLiveLayerStyleUpdatesReturn {
 
 export function useLiveLayerStyleUpdates(): UseLiveLayerStyleUpdatesReturn {
   const { user } = useAuthStore();
+  const xxivCollaborationSiteId = useEditorStore((s) => s.xxivCollaborationSiteId);
   const updateUser = useCollaborationPresenceStore((state) => state.updateUser);
   const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
 
@@ -46,7 +49,12 @@ export function useLiveLayerStyleUpdates(): UseLiveLayerStyleUpdatesReturn {
     const initializeChannel = async () => {
       try {
         const supabase = await createClient();
-        const channel = supabase.channel('layer-styles:updates');
+        const channelName = scopedCollaborationChannel(
+          'layer-styles:updates',
+          xxivCollaborationSiteId,
+          user.id,
+        );
+        const channel = supabase.channel(channelName);
 
         // Listen for style events
         channel.on('broadcast', { event: 'style_created' }, (payload) => {
@@ -85,7 +93,7 @@ export function useLiveLayerStyleUpdates(): UseLiveLayerStyleUpdatesReturn {
       isConnectedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, user?.id, xxivCollaborationSiteId]);
 
   // === INCOMING HANDLERS ===
 

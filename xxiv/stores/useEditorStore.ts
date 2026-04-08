@@ -64,6 +64,8 @@ interface EditorActions {
   pushComponentNavigation: (entry: ComponentNavigationEntry) => void;
   getReturnDestination: () => ComponentNavigationEntry | null;
   setBuilderDataPreloaded: (preloaded: boolean) => void;
+  /** Resolved XXIV site for realtime collaboration scoping (URL, cookie, or inferred from pages). */
+  setXxivCollaborationSiteId: (id: string | null) => void;
   pushHistory: (pageId: string, layers: Layer[]) => void;
   undo: () => HistoryEntry | null;
   redo: () => HistoryEntry | null;
@@ -115,6 +117,7 @@ interface EditorStoreWithHistory extends EditorState {
   componentNavigationStack: ComponentNavigationEntry[]; // Breadcrumb stack for nested component editing
   currentPageCollectionItemId: string | null;
   builderDataPreloaded: boolean;
+  xxivCollaborationSiteId: string | null;
   interactionTriggerLayerIds: string[];
   interactionTargetLayerIds: string[];
   activeInteractionTriggerLayerId: string | null;
@@ -205,6 +208,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   componentNavigationStack: [],
   currentPageCollectionItemId: null,
   builderDataPreloaded: false,
+  xxivCollaborationSiteId: null,
   interactionTriggerLayerIds: [],
   interactionTargetLayerIds: [],
   activeInteractionTriggerLayerId: null,
@@ -414,6 +418,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
   },
   setBuilderDataPreloaded: (preloaded) => set({ builderDataPreloaded: preloaded }),
+  setXxivCollaborationSiteId: (id) => set({ xxivCollaborationSiteId: id }),
 
   /**
    * Push an entry to the component navigation stack (for breadcrumb)

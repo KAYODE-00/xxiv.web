@@ -89,7 +89,7 @@ export function registerPageTools(server: McpServer) {
     },
     async ({ page_id, ...data }) => {
       const page = await updatePage(page_id, data);
-      broadcastPageUpdated(page_id, data).catch(() => {});
+      broadcastPageUpdated(page, data).catch(() => {});
       return { content: [{ type: 'text' as const, text: JSON.stringify(page, null, 2) }] };
     },
   );
@@ -152,7 +152,7 @@ Password protection: Enable/disable with a password.`,
       }
 
       const page = await updatePage(page_id, { settings });
-      broadcastPageUpdated(page_id, { settings }).catch(() => {});
+      broadcastPageUpdated(page, { settings }).catch(() => {});
       return { content: [{ type: 'text' as const, text: JSON.stringify({ message: 'Updated page settings', settings: page.settings }, null, 2) }] };
     },
   );
@@ -173,8 +173,11 @@ Password protection: Enable/disable with a password.`,
     'Permanently delete a page and all its layers',
     { page_id: z.string().describe('The page ID to delete') },
     async ({ page_id }) => {
+      const existing = await getPageById(page_id);
       await deletePage(page_id);
-      broadcastPageDeleted(page_id).catch(() => {});
+      if (existing) {
+        broadcastPageDeleted(existing).catch(() => {});
+      }
       return { content: [{ type: 'text' as const, text: `Page ${page_id} deleted successfully.` }] };
     },
   );

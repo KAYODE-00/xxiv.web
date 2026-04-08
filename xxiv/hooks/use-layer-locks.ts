@@ -10,6 +10,7 @@ import { useCollaborationPresenceStore, getResourceLockKey } from '@/stores/useC
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useResourceLock } from './use-resource-lock';
+import { collaborationNamespaceSegment } from '@/lib/xxiv/realtime-namespace';
 
 // Resource type constant for layers
 const LAYER_RESOURCE_TYPE = 'layer';
@@ -28,15 +29,16 @@ export function useLayerLocks(): UseLayerLocksReturn {
   const { user } = useAuthStore();
   const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
   const updateUser = useCollaborationPresenceStore((state) => state.updateUser);
-  const { currentPageId, editingComponentId } = useEditorStore();
+  const { currentPageId, editingComponentId, xxivCollaborationSiteId } = useEditorStore();
   
   const lastActivity = useRef<number>(Date.now());
   
+  const ns = collaborationNamespaceSegment(xxivCollaborationSiteId, user?.id ?? null);
   // Determine the channel name based on whether we're editing a component or a page
-  const channelName = editingComponentId 
-    ? `component:${editingComponentId}:locks` 
-    : currentPageId 
-      ? `page:${currentPageId}:locks` 
+  const channelName = editingComponentId
+    ? `${ns}:component:${editingComponentId}:locks`
+    : currentPageId
+      ? `${ns}:page:${currentPageId}:locks`
       : '';
   
   // Use the generic resource lock hook - this is the core of the locking

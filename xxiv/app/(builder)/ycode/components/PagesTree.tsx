@@ -345,6 +345,15 @@ export default function PagesTree({
 }: PagesTreeProps) {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
+  const dedupeFlattenedNodes = useCallback((nodes: FlattenedPageNode[]) => {
+    const seen = new Set<string>();
+    return nodes.filter((node) => {
+      if (seen.has(node.id)) return false;
+      seen.add(node.id);
+      return true;
+    });
+  }, []);
+
   // Build tree structure
   const tree = useMemo(
     () => buildPageTree(pages, folders),
@@ -353,14 +362,14 @@ export default function PagesTree({
 
   // Flatten the tree for rendering (respects collapsed state)
   const flattenedNodes = useMemo(
-    () => flattenPageTree(tree, null, 0, collapsedIds),
-    [tree, collapsedIds]
+    () => dedupeFlattenedNodes(flattenPageTree(tree, null, 0, collapsedIds)),
+    [tree, collapsedIds, dedupeFlattenedNodes]
   );
 
   // Complete flattened list ignoring collapse — used for rebuild so collapsed children aren't lost
   const allFlattenedNodes = useMemo(
-    () => flattenPageTree(tree, null, 0, new Set()),
-    [tree]
+    () => dedupeFlattenedNodes(flattenPageTree(tree, null, 0, new Set())),
+    [tree, dedupeFlattenedNodes]
   );
 
   // Calculate which depth levels should be highlighted (selected folders)

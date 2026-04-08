@@ -722,7 +722,17 @@ export const editorApi = {
     // If omitted, editor loads all data (default Ycode behavior).
     const siteId =
       typeof window !== 'undefined'
-        ? new URLSearchParams(window.location.search).get('xxiv_site_id')
+        ? (() => {
+            const q = new URLSearchParams(window.location.search).get('xxiv_site_id');
+            if (q) return q;
+            const m = document.cookie.match(/(?:^|;\s*)xxiv_site_id=([^;]*)/);
+            if (!m?.[1]) return null;
+            try {
+              return decodeURIComponent(m[1].trim());
+            } catch {
+              return m[1].trim();
+            }
+          })()
         : null;
 
     const qs = siteId ? `?xxiv_site_id=${encodeURIComponent(siteId)}` : '';

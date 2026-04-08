@@ -8,9 +8,11 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useEditorStore } from '../stores/useEditorStore';
 import { useCollectionsStore } from '../stores/useCollectionsStore';
 import { useCollaborationPresenceStore } from '../stores/useCollaborationPresenceStore';
 import { createClient } from '@/lib/supabase-browser';
+import { scopedCollaborationChannel } from '@/lib/xxiv/realtime-namespace';
 import type { Collection, CollectionItemWithValues } from '../types';
 
 // Types for collection updates
@@ -44,6 +46,7 @@ export interface UseLiveCollectionUpdatesReturn {
 
 export function useLiveCollectionUpdates(): UseLiveCollectionUpdatesReturn {
   const { user } = useAuthStore();
+  const xxivCollaborationSiteId = useEditorStore((state) => state.xxivCollaborationSiteId);
   const updateUser = useCollaborationPresenceStore((state) => state.updateUser);
   const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
 
@@ -59,7 +62,12 @@ export function useLiveCollectionUpdates(): UseLiveCollectionUpdatesReturn {
     const initializeChannel = async () => {
       try {
         const supabase = await createClient();
-        const channel = supabase.channel('collections:updates');
+        const channelName = scopedCollaborationChannel(
+          'collections:updates',
+          xxivCollaborationSiteId,
+          user.id,
+        );
+        const channel = supabase.channel(channelName);
 
         // Listen for collection events
         channel.on('broadcast', { event: 'collection_created' }, (payload) => {
@@ -111,7 +119,7 @@ export function useLiveCollectionUpdates(): UseLiveCollectionUpdatesReturn {
       isConnectedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers are stable refs, adding would cause reconnect loops
-  }, [user]);
+  }, [user, user?.id, xxivCollaborationSiteId]);
 
   // === INCOMING HANDLERS ===
 

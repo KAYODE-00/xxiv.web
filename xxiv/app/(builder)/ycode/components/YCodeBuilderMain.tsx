@@ -78,6 +78,7 @@ import { useVersionsStore } from '@/stores/useVersionsStore';
 // import { useCollaborationPresenceStore } from '@/stores/useCollaborationPresenceStore';
 
 // 6. Utils/lib
+import { collaborationNamespaceSegment, readXxivSiteCookieFromDocument } from '@/lib/xxiv/realtime-namespace';
 import { findHomepage } from '@/lib/page-utils';
 import { findLayerById, getClassesString, removeLayerById, canCopyLayer, canDeleteLayer, regenerateIdsWithInteractionRemapping, findParentAndIndex, insertLayerAfter, updateLayerProps, getLayerIndexes, removeRichTextSublayer } from '@/lib/layer-utils';
 import { cloneDeep } from 'lodash';
@@ -119,6 +120,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
   const builderDataPreloaded = useEditorStore((state) => state.builderDataPreloaded);
   const setBuilderDataPreloaded = useEditorStore((state) => state.setBuilderDataPreloaded);
+  const xxivCollaborationSiteId = useEditorStore((state) => state.xxivCollaborationSiteId);
   const collectionItemSheet = useEditorStore((state) => state.collectionItemSheet);
   const closeCollectionItemSheet = useEditorStore((state) => state.closeCollectionItemSheet);
   const fileManager = useEditorStore((state) => state.fileManager);
@@ -441,6 +443,12 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      useEditorStore.getState().setXxivCollaborationSiteId(null);
+    }
+  }, [user]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -465,6 +473,19 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
       // Load everything in parallel using Promise.all
       const loadBuilderData = async () => {
+        const resolveXxivCollaborationSite = (pages: { settings?: unknown }[]) => {
+          const siteFromUrl =
+            typeof window !== 'undefined'
+              ? new URLSearchParams(window.location.search).get('xxiv_site_id')
+              : null;
+          const siteFromCookie =
+            typeof window !== 'undefined' ? readXxivSiteCookieFromDocument() : null;
+          const first = pages[0]?.settings as { xxiv?: { site_id?: string } } | undefined;
+          const siteFromPages =
+            typeof first?.xxiv?.site_id === 'string' ? first.xxiv.site_id : null;
+          return siteFromUrl || siteFromCookie || siteFromPages || null;
+        };
+
         try {
           const { editorApi } = await import('@/lib/api');
           const response = await editorApi.init();
@@ -476,6 +497,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
               toast.error('You have been disconnected, please reload the page');
             }
 
+            useEditorStore.getState().setXxivCollaborationSiteId(resolveXxivCollaborationSite([]));
             setBuilderDataPreloaded(true);
             return;
           }
@@ -519,11 +541,16 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
               await Promise.all(asyncTasks);
             }
 
+            useEditorStore
+              .getState()
+              .setXxivCollaborationSiteId(resolveXxivCollaborationSite(response.data.pages));
+
             // Mark data as preloaded - NOW UI can render
             setBuilderDataPreloaded(true);
           }
         } catch (error) {
           console.error('[Editor] Error loading builder data:', error);
+          useEditorStore.getState().setXxivCollaborationSiteId(resolveXxivCollaborationSite([]));
           setBuilderDataPreloaded(true); // Allow UI to render even on error
         }
       };
@@ -956,31 +983,26 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     return pages.find(p => p.id === currentPageId);
   }, [pages, currentPageId]);
 
-  // Build context-aware cursor room name
-  // Cursors are scoped to the same context (tab + page/collection/component)
+  // Build context-aware cursor room name (prefix separates XXIV sites / users in Supabase Realtime)
+  const cursorNamespace = useMemo(
+    () => collaborationNamespaceSegment(xxivCollaborationSiteId, user?.id ?? null),
+    [xxivCollaborationSiteId, user?.id],
+  );
+
   const cursorRoomName = useMemo(() => {
-    // Component editing takes priority - users editing same component see each other
+    let room: string | null = null;
     if (editingComponentId) {
-      return `component-${editingComponentId}`;
+      room = `component-${editingComponentId}`;
+    } else if (activeTab === 'cms' && selectedCollectionId) {
+      room = `cms-collection-${selectedCollectionId}`;
+    } else if (activeTab === 'pages' && currentPageId) {
+      room = `pages-page-${currentPageId}`;
+    } else if (currentPageId) {
+      room = `layers-page-${currentPageId}`;
     }
 
-    // CMS tab - users viewing same collection see each other
-    if (activeTab === 'cms' && selectedCollectionId) {
-      return `cms-collection-${selectedCollectionId}`;
-    }
-
-    // Pages tab - users on same page in Pages view see each other
-    if (activeTab === 'pages' && currentPageId) {
-      return `pages-page-${currentPageId}`;
-    }
-
-    // Layers tab (default) - users on same page in Layers view see each other
-    if (currentPageId) {
-      return `layers-page-${currentPageId}`;
-    }
-
-    return null;
-  }, [editingComponentId, activeTab, selectedCollectionId, currentPageId]);
+    return room ? `${cursorNamespace}:${room}` : null;
+  }, [editingComponentId, activeTab, selectedCollectionId, currentPageId, cursorNamespace]);
 
   // Track if we're currently exiting component edit mode to prevent re-entry
   const isExitingComponentModeRef = useRef(false);

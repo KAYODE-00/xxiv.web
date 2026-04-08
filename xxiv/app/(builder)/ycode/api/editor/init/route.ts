@@ -55,7 +55,8 @@ function stripXxivSlugSuffix(slug: string, siteId: string): string {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const xxivSiteId = searchParams.get('xxiv_site_id');
+    const xxivSiteId =
+      searchParams.get('xxiv_site_id') || request.cookies.get('xxiv_site_id')?.value || null;
 
     // Load all data in parallel (only drafts for editor)
     const [pages, drafts, folders, components, styles, settings, collections, locales, assets, assetFolders, fonts, resolvedMapboxToken, resolvedGoogleMapsEmbedKey] = await Promise.all([
