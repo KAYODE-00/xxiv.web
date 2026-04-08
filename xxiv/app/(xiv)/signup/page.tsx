@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ─── Styles (reuse same obsidian theme) ──────────────────────────────────────
@@ -278,7 +278,6 @@ function EyeIcon({ open }: { open: boolean }) {
 
 export default function SignupPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -294,9 +293,9 @@ export default function SignupPage() {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
   useEffect(() => {
-    const urlError = searchParams.get('error');
+    const urlError = new URLSearchParams(window.location.search).get('error');
     if (urlError) setError(decodeURIComponent(urlError));
-  }, [searchParams]);
+  }, []);
 
   useEffect(() => {
     import('@/lib/supabase-browser').then(({ createBrowserClient }) => {

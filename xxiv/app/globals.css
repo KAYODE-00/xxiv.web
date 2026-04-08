@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -275,4 +276,23 @@
 /* Override Sonner toast content gap */
 [data-sonner-toast][data-styled='true'] [data-content] {
   gap: 0;
+}
+
+/* XXIV design tokens */
+.xxiv-black { background: #000000; }
+.xxiv-surface { background: #0a0a0a; }
+.xxiv-border { border-color: #1a1a1a; }
+.xxiv-muted { color: #888888; }
+.xxiv-btn-primary {
+  background: #ffffff;
+  color: #000000;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.xxiv-btn-primary:hover {
+  background: #e8e8e8;
 }

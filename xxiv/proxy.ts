@@ -178,7 +178,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // ── XXIV special: /ycode/welcome always redirects to /dashboard ──────────
-  if (pathname === '/ycode/welcome') {
+  if (pathname === '/ycode/welcome' || pathname.startsWith('/ycode/welcome')) {
     return NextResponse.redirect(new URL('/dashboard', origin));
   }
 

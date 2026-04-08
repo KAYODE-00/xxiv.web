@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
@@ -248,7 +248,6 @@ function EyeIcon({ open }: { open: boolean }) {
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -260,11 +259,11 @@ export default function LoginPage() {
 
   // Parse error from URL (e.g., after OAuth redirect)
   useEffect(() => {
-    const urlError = searchParams.get('error');
+    const urlError = new URLSearchParams(window.location.search).get('error');
     if (urlError) {
       setError(decodeURIComponent(urlError));
     }
-  }, [searchParams]);
+  }, []);
 
   // Initialize Supabase client
   useEffect(() => {
