@@ -220,8 +220,9 @@ export default function DashboardClient({
                     background: '#0a0a0a',
                     border: '1px solid #1a1a1a',
                     borderRadius: 12,
-                    overflow: 'hidden',
+                    overflow: 'visible',
                     position: 'relative',
+                    zIndex: 1,
                   }}
                 >
                   {/* Thumbnail */}
@@ -336,7 +337,7 @@ export default function DashboardClient({
                               border: '1px solid #1a1a1a',
                               borderRadius: 12,
                               overflow: 'hidden',
-                              zIndex: 30,
+                              zIndex: 1000,
                               boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
                             }}
                           >
