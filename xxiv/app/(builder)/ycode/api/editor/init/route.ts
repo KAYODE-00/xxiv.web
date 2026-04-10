@@ -12,6 +12,7 @@ import { getAllAssetFolders } from '@/lib/repositories/assetFolderRepository';
 import { getAllFonts } from '@/lib/repositories/fontRepository';
 import { getMapboxAccessToken, getGoogleMapsEmbedApiKey } from '@/lib/map-server';
 import { createServerClient } from '@supabase/ssr';
+import { stripXxivIndexSlug } from '@/lib/xxiv/index-slug';
 
 function getSupabaseEnvConfig(): { url: string; anonKey: string } | null {
   const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
@@ -35,6 +36,11 @@ function stripXxivSlugSuffix(slug: string, siteId: string): string {
     return slug.slice(0, -suffix.length);
   }
   return slug;
+}
+
+function normalizeXxivPageSlugForResponse(page: any, siteId: string): any {
+  const cleaned = stripXxivSlugSuffix(page.slug, siteId);
+  return { ...page, slug: stripXxivIndexSlug(cleaned, siteId) };
 }
 
 /**
@@ -112,7 +118,7 @@ export async function GET(request: NextRequest) {
 
       const scopedPages = (pages || [])
         .filter((p) => pageBelongsToXxivSite(p, xxivSiteId))
-        .map((p) => ({ ...p, slug: stripXxivSlugSuffix((p as any).slug, xxivSiteId) }));
+        .map((p) => normalizeXxivPageSlugForResponse(p, xxivSiteId));
       const allowedPageIds = new Set(scopedPages.map((p) => p.id));
       const scopedDrafts = (drafts || []).filter((d) => allowedPageIds.has(d.page_id));
 

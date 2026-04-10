@@ -14,6 +14,14 @@ const API_BASE = '';
 function getXxivSiteQuery(): string {
   if (typeof window === 'undefined') return '';
   const siteId = new URLSearchParams(window.location.search).get('xxiv_site_id');
+  if (siteId) {
+    const encoded = encodeURIComponent(siteId);
+    const current = document.cookie.match(/(?:^|;\s*)xxiv_site_id=([^;]*)/);
+    const currentValue = current?.[1] ? current[1].trim() : null;
+    if (currentValue !== encoded) {
+      document.cookie = `xxiv_site_id=${encoded}; Path=/; SameSite=Lax`;
+    }
+  }
   return siteId ? `xxiv_site_id=${encodeURIComponent(siteId)}` : '';
 }
 
@@ -30,13 +38,33 @@ async function apiRequest<T>(
 ): Promise<ApiResponse<T>> {
   const token = await getAuthToken();
 
+  // Get site ID from URL or cookie (non-breaking enhancement)
+  let siteId: string | null = null;
+
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    siteId = params.get('xxiv_site_id');
+
+    if (!siteId) {
+      const match = document.cookie.match(/(?:^|;\s*)xxiv_site_id=([^;]*)/);
+      if (match?.[1]) {
+        try {
+          siteId = decodeURIComponent(match[1].trim());
+        } catch {
+          siteId = match[1].trim();
+        }
+      }
+    }
+  }
+
   const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
+      ...(siteId && { 'x-site-id': siteId }), // ✅ NEW (safe)
+      ...options.headers, // keep last so manual overrides still work
     },
-    ...options,
   });
 
   if (!response.ok) {
@@ -61,11 +89,12 @@ async function apiRequest<T>(
 
   try {
     const json = await response.json();
+
     // API responses are already wrapped in { data: ... }
-    // So we unwrap them here
     if (json.data !== undefined) {
       return { data: json.data };
     }
+
     // Fallback for responses that aren't wrapped
     return { data: json };
   } catch (error) {
@@ -89,9 +118,13 @@ export const pagesApi = {
   },
 
   // Get page by slug
-  async getBySlug(slug: string): Promise<ApiResponse<Page>> {
-    return apiRequest<Page>(`/ycode/api/pages/slug/${slug}`);
-  },
+async getBySlug(slug: string, siteId: string): Promise<ApiResponse<Page>> {
+  return apiRequest<Page>(`/ycode/api/pages/slug/${slug}`, {
+    headers: {
+      'x-site-id': siteId,
+    },
+  });
+},
 
   // Get all published pages (for public website)
   async getAllPublished(): Promise<ApiResponse<Page[]>> {

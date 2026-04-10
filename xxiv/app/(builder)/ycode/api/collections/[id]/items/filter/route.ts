@@ -23,6 +23,16 @@ interface FilterCondition {
   fieldType?: string;
 }
 
+function getXxivSiteIdFromRequest(request: NextRequest): string | null {
+  const { searchParams } = new URL(request.url);
+  return (
+    searchParams.get('xxiv_site_id') ||
+    request.headers.get('x-xxiv-site-id') ||
+    request.cookies.get('xxiv_site_id')?.value ||
+    null
+  );
+}
+
 // PostgREST encodes .in() values into a URL query param.
 // Conservative chunk size avoids hitting URL length limits (~8KB).
 const IN_CHUNK_SIZE = 150;
@@ -587,8 +597,9 @@ export async function POST(
       }
     }
 
+    const xxivSiteId = getXxivSiteIdFromRequest(request);
     const [pages, folders] = await Promise.all([
-      getAllPages(),
+      getAllPages(undefined, xxivSiteId),
       getAllPageFolders(),
     ]);
 

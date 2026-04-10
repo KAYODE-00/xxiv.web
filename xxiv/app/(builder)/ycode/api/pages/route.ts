@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAllPages, createPage } from '@/lib/repositories/pageRepository';
+import { stripXxivIndexSlug } from '@/lib/xxiv/index-slug';
 import { upsertDraftLayers } from '@/lib/repositories/pageLayersRepository';
 import { noCache } from '@/lib/api-response';
 
@@ -14,6 +15,11 @@ function stripXxivSlugSuffix(slug: string, siteId: string): string {
     return slug.slice(0, -suffix.length);
   }
   return slug;
+}
+
+function normalizeXxivPageSlugForResponse(page: any, siteId: string): any {
+  const cleaned = stripXxivSlugSuffix(page.slug, siteId);
+  return { ...page, slug: stripXxivIndexSlug(cleaned, siteId) };
 }
 
 /**
@@ -33,7 +39,11 @@ export async function GET(request: NextRequest) {
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const filters: Record<string, any> = {};
-    const xxivSiteId = searchParams.get('xxiv_site_id');
+    const xxivSiteId =
+      searchParams.get('xxiv_site_id') ||
+      request.headers.get('x-xxiv-site-id') ||
+      request.cookies.get('xxiv_site_id')?.value ||
+      null;
 
     // Default to draft pages if no is_published filter specified
     const isPublished = searchParams.get('is_published');
@@ -55,11 +65,9 @@ export async function GET(request: NextRequest) {
       filters.depth = parseInt(depth, 10);
     }
 
-    const pages = await getAllPages(filters);
+    const pages = await getAllPages(filters, xxivSiteId);
     const filteredPages = xxivSiteId
-      ? pages
-        .filter((p: any) => p?.settings?.xxiv?.site_id === xxivSiteId)
-        .map((p: any) => ({ ...p, slug: stripXxivSlugSuffix(p.slug, xxivSiteId) }))
+      ? pages.map((p: any) => normalizeXxivPageSlugForResponse(p, xxivSiteId))
       : pages;
 
     return noCache({
@@ -187,6 +195,7 @@ export async function POST(request: NextRequest) {
           is_index,
           is_dynamic,
           error_page,
+          xxiv_site_id: xxivSiteId || undefined,
           settings: scopedSettings,
         });
         break;
@@ -211,7 +220,7 @@ export async function POST(request: NextRequest) {
     await upsertDraftLayers(page.id, [bodyLayer]);
 
     return noCache({
-      data: xxivSiteId ? { ...page, slug: stripXxivSlugSuffix(page.slug, xxivSiteId) } : page,
+      data: xxivSiteId ? normalizeXxivPageSlugForResponse(page, xxivSiteId) : page,
     });
   } catch (error) {
     console.error('[POST /ycode/api/pages] Error:', error);

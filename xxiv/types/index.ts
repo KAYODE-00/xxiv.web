@@ -604,6 +604,7 @@ export interface Component {
 
 export interface Page {
   id: string;
+  xxiv_site_id?: string | null;
   slug: string;
   name: string;
   page_folder_id: string | null; // Reference to page_folders

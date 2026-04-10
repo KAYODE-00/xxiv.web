@@ -308,8 +308,17 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
     }
 
     // Fetch pages, folders, and components in parallel
+    let pagesQuery = supabase
+      .from('pages')
+      .select('*')
+      .eq('is_published', isPublished)
+      .is('deleted_at', null);
+    if (xxivSiteId) {
+      pagesQuery = pagesQuery.eq('xxiv_site_id', xxivSiteId);
+    }
+
     const [{ data: pages }, { data: folders }, components] = await Promise.all([
-      supabase.from('pages').select('*').eq('is_published', isPublished).is('deleted_at', null),
+      pagesQuery,
       supabase.from('page_folders').select('*').eq('is_published', isPublished).is('deleted_at', null),
       fetchComponents(supabase, isPublished),
     ]);
@@ -318,9 +327,16 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
       return null;
     }
 
-    const scopedPages = xxivSiteId
-      ? pages.filter((p: any) => p?.settings?.xxiv?.site_id === xxivSiteId)
-      : pages;
+    let scopedPages = pages;
+    if (xxivSiteId && scopedPages.length === 0) {
+      // Legacy fallback: pages created before xxiv_site_id column was populated.
+      const { data: legacyPages } = await supabase
+        .from('pages')
+        .select('*')
+        .eq('is_published', isPublished)
+        .is('deleted_at', null);
+      scopedPages = (legacyPages || []).filter((p: any) => p?.settings?.xxiv?.site_id === xxivSiteId);
+    }
 
     const stripXxivSuffix = (slug: string) => {
       if (!xxivSiteId || typeof slug !== 'string') return slug;
@@ -334,7 +350,7 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
     // try to fetch the homepage
     if (targetPath === '' && detectedLocale) {
       // Pass preloaded components to avoid redundant query
-      const homepageData = await fetchHomepage(isPublished, paginationContext, components);
+      const homepageData = await fetchHomepage(isPublished, paginationContext, components, tenantId, xxivSiteId);
       if (homepageData) {
         // Components and collection layers are already resolved by fetchHomepage
         // Apply translations for the detected locale
@@ -673,7 +689,8 @@ export const fetchHomepage = cache(async function fetchHomepage(
   isPublished: boolean,
   paginationContext?: PaginationContext,
   preloadedComponents?: Component[],
-  tenantId?: string
+  tenantId?: string,
+  xxivSiteId?: string
 ): Promise<Pick<PageData, 'page' | 'pageLayers' | 'components' | 'locale' | 'availableLocales' | 'translations'> | null> {
   try {
     const supabase = await getSupabaseAdmin(tenantId);
@@ -683,17 +700,44 @@ export const fetchHomepage = cache(async function fetchHomepage(
     }
 
     // Fetch locales, homepage, and components in parallel
+    let homepageQuery = supabase
+      .from('pages')
+      .select('*')
+      .eq('is_index', true)
+      .is('page_folder_id', null)
+      .eq('is_published', isPublished)
+      .is('deleted_at', null);
+    if (xxivSiteId) {
+      homepageQuery = homepageQuery.eq('xxiv_site_id', xxivSiteId);
+    }
+
     const [
       { data: availableLocales },
       { data: homepage },
       componentsResult,
     ] = await Promise.all([
       supabase.from('locales').select('*').eq('is_published', isPublished).is('deleted_at', null),
-      supabase.from('pages').select('*').eq('is_index', true).is('page_folder_id', null).eq('is_published', isPublished).is('deleted_at', null).limit(1).single(),
+      homepageQuery.limit(1).single(),
       preloadedComponents ? Promise.resolve(preloadedComponents) : fetchComponents(supabase, isPublished),
     ]);
 
-    if (!homepage) {
+    let resolvedHomepage = homepage;
+    if (!resolvedHomepage && xxivSiteId) {
+      // Legacy fallback: pages created before xxiv_site_id column was populated.
+      const { data: legacyHomepage } = await supabase
+        .from('pages')
+        .select('*')
+        .eq('is_index', true)
+        .is('page_folder_id', null)
+        .eq('is_published', isPublished)
+        .is('deleted_at', null)
+        .contains('settings', { xxiv: { site_id: xxivSiteId } })
+        .limit(1)
+        .single();
+      resolvedHomepage = legacyHomepage || null;
+    }
+
+    if (!resolvedHomepage) {
       return null;
     }
 
@@ -703,7 +747,7 @@ export const fetchHomepage = cache(async function fetchHomepage(
     const { data: pageLayers, error: layersError } = await supabase
       .from('page_layers')
       .select('*')
-      .eq('page_id', homepage.id)
+      .eq('page_id', resolvedHomepage.id)
       .eq('is_published', isPublished)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -730,7 +774,7 @@ export const fetchHomepage = cache(async function fetchHomepage(
     resolvedLayers = resolved.layers;
 
     return {
-      page: homepage,
+      page: resolvedHomepage,
       pageLayers: {
         ...pageLayers,
         layers: resolvedLayers,

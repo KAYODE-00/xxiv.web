@@ -19,14 +19,24 @@ async function fetchPreviewDraftCss() {
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function Page({ params }: { params: Promise<{ slug: string | string[] }> }) {
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string | string[] }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   // Await params (Next.js 15 requirement)
   const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
   const cookieStore = await cookies();
-  const xxivSiteId = cookieStore.get('xxiv_site_id')?.value || undefined;
+  const siteFromQuery = typeof resolvedSearchParams?.xxiv_site_id === 'string'
+    ? resolvedSearchParams.xxiv_site_id
+    : undefined;
+  const xxivSiteId = siteFromQuery || cookieStore.get('xxiv_site_id')?.value || undefined;
 
   // Fetch draft page and layers data (no caching)
   const data = await fetchPageByPath(slugPath, false, undefined, undefined, xxivSiteId);
@@ -129,13 +139,23 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 }
 
 // Generate metadata
-export async function generateMetadata({ params }: { params: Promise<{ slug: string | string[] }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string | string[] }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}): Promise<Metadata> {
   const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
   const cookieStore = await cookies();
-  const xxivSiteId = cookieStore.get('xxiv_site_id')?.value || undefined;
+  const siteFromQuery = typeof resolvedSearchParams?.xxiv_site_id === 'string'
+    ? resolvedSearchParams.xxiv_site_id
+    : undefined;
+  const xxivSiteId = siteFromQuery || cookieStore.get('xxiv_site_id')?.value || undefined;
 
   // Fetch draft page to get name and SEO settings
   const data = await fetchPageByPath(slugPath, false, undefined, undefined, xxivSiteId);

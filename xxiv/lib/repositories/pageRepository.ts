@@ -10,6 +10,7 @@ import type { Page, PageSettings } from '../../types';
 import { isHomepage } from '../page-utils';
 import { incrementSiblingOrders, fixOrphanedPageSlugs } from '../services/pageService';
 import { generatePageMetadataHash } from '../hash-utils';
+import { buildXxivIndexSlug, isXxivIndexSlug } from '../xxiv/index-slug';
 
 /**
  * Query filters for page lookups
@@ -23,6 +24,7 @@ export interface QueryFilters {
  */
 export interface CreatePageData {
   id?: string;
+  xxiv_site_id?: string | null;
   name: string;
   slug: string;
   is_published?: boolean;
@@ -51,6 +53,7 @@ export interface UpdatePageData {
   error_page?: number | null;
   settings?: PageSettings;
   content_hash?: string; // Auto-calculated, should not be set manually
+  xxiv_site_id?: string | null;
 }
 
 function normalizePageFolderId(folderId?: string | null): string | null {
@@ -80,7 +83,7 @@ function normalizePageFolderId(folderId?: string | null): string | null {
  * const allPages = await getAllPages();
  * const publishedPages = await getAllPages({ is_published: true });
  */
-export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
+export async function getAllPages(filters?: QueryFilters, xxivSiteId?: string | null): Promise<Page[]> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -92,6 +95,10 @@ export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
     .from('pages')
     .select('*')
     .is('deleted_at', null);
+
+  if (xxivSiteId !== undefined && xxivSiteId !== null) {
+    query = query.eq('xxiv_site_id', xxivSiteId);
+  }
 
   // Apply filters if provided
   if (filters) {
@@ -145,31 +152,67 @@ export async function getPageById(id: string, isPublished: boolean = false): Pro
  * @param slug - Page slug
  * @param filters - Optional additional filters
  */
-export async function getPageBySlug(slug: string, filters?: QueryFilters): Promise<Page | null> {
+// export async function getPageBySlug(slug: string, filters?: QueryFilters): Promise<Page | null> {
+//   const client = await getSupabaseAdmin();
+
+//   if (!client) {
+//     throw new Error('Supabase not configured');
+//   }
+
+//   let query = client
+//     .from('pages')
+//     .select('*')
+//     .eq('slug', slug)
+//     .is('deleted_at', null);
+
+//   // Apply additional filters if provided
+//   if (filters) {
+//     Object.entries(filters).forEach(([column, value]) => {
+//       query = query.eq(column, value);
+//     });
+//   }
+
+//   const { data, error } = await query.single();
+
+//   if (error) {
+//     if (error.code === 'PGRST116') {
+//       return null; // Not found
+//     }
+//     throw new Error(`Failed to fetch page: ${error.message}`);
+//   }
+
+//   return data;
+// }
+
+
+export async function getPageBySlug(
+  slug: string,
+  filters?: QueryFilters
+): Promise<Page | null> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
     throw new Error('Supabase not configured');
   }
 
+  const finalSlug = !slug || slug === '' ? '/' : slug;
+
   let query = client
     .from('pages')
     .select('*')
-    .eq('slug', slug)
+    .eq('slug', finalSlug)
     .is('deleted_at', null);
 
-  // Apply additional filters if provided
-  if (filters) {
-    Object.entries(filters).forEach(([column, value]) => {
-      query = query.eq(column, value);
-    });
+  // ✅ 🔥 CRITICAL FIX — ALWAYS FILTER BY SITE
+  if (filters?.xxiv_site_id) {
+    query = query.eq('xxiv_site_id', filters.xxiv_site_id);
   }
 
   const { data, error } = await query.single();
 
   if (error) {
     if (error.code === 'PGRST116') {
-      return null; // Not found
+      return null;
     }
     throw new Error(`Failed to fetch page: ${error.message}`);
   }
@@ -193,6 +236,21 @@ function generateSlugFromName(name: string, timestamp?: number): string {
   return baseSlug || `page-${Date.now()}`;
 }
 
+function applyXxivIndexSlug(
+  slug: string,
+  isIndex: boolean,
+  pageFolderId: string | null | undefined,
+  xxivSiteId?: string | null
+): string {
+  if (!isIndex || !xxivSiteId) return slug;
+  if (pageFolderId !== null && pageFolderId !== undefined) return slug;
+  const trimmed = typeof slug === 'string' ? slug.trim() : '';
+  if (!trimmed || isXxivIndexSlug(trimmed, xxivSiteId)) {
+    return buildXxivIndexSlug(xxivSiteId);
+  }
+  return slug;
+}
+
 /**
  * Automatically transfer index status from existing index page to new one
  * - Finds existing index page in the same folder
@@ -203,7 +261,8 @@ async function transferIndexPage(
   client: any,
   newIndexPageId: string,
   pageFolderId: string | null,
-  isPublished: boolean = false
+  isPublished: boolean = false,
+  xxivSiteId?: string | null
 ): Promise<void> {
   // Find existing index page in the same folder WITH THE SAME is_published status
   // This prevents draft pages from being modified when creating published index pages
@@ -214,6 +273,10 @@ async function transferIndexPage(
     .eq('is_published', isPublished)
     .is('deleted_at', null)
     .neq('id', newIndexPageId);
+
+  if (xxivSiteId !== undefined && xxivSiteId !== null) {
+    query = query.eq('xxiv_site_id', xxivSiteId);
+  }
 
   // Filter by parent folder
   if (pageFolderId === null || pageFolderId === undefined) {
@@ -236,7 +299,9 @@ async function transferIndexPage(
   if (existingIndex) {
     // If the existing index page already has a slug (shouldn't happen but might in edge cases),
     // we don't need to generate a new one - just unset is_index
-    if (existingIndex.slug && existingIndex.slug.trim() !== '') {
+    const existingSlug = existingIndex.slug ? existingIndex.slug.trim() : '';
+    const isHiddenIndexSlug = isXxivIndexSlug(existingSlug, xxivSiteId);
+    if (existingSlug !== '' && !isHiddenIndexSlug) {
       const { error: updateError } = await client
         .from('pages')
         .update({
@@ -258,28 +323,36 @@ async function transferIndexPage(
     let newSlug = generateSlugFromName(existingIndex.name);
 
     // Check if slug already exists (regardless of published state)
-    const { data: duplicateCheck } = await client
+    let duplicateCheckQuery = client
       .from('pages')
       .select('id')
       .eq('slug', newSlug)
       .is('deleted_at', null)
-      .neq('id', existingIndex.id)
-      .limit(1)
-      .single();
+      .neq('id', existingIndex.id);
+
+    if (xxivSiteId !== undefined && xxivSiteId !== null) {
+      duplicateCheckQuery = duplicateCheckQuery.eq('xxiv_site_id', xxivSiteId);
+    }
+
+    const { data: duplicateCheck } = await duplicateCheckQuery.limit(1).single();
 
     // If slug exists, add timestamp
     if (duplicateCheck) {
       newSlug = generateSlugFromName(existingIndex.name, timestamp);
 
       // Double-check the timestamped slug doesn't exist either
-      const { data: timestampedDuplicateCheck } = await client
+      let timestampedDuplicateQuery = client
         .from('pages')
         .select('id')
         .eq('slug', newSlug)
         .is('deleted_at', null)
-        .neq('id', existingIndex.id)
-        .limit(1)
-        .single();
+        .neq('id', existingIndex.id);
+
+      if (xxivSiteId !== undefined && xxivSiteId !== null) {
+        timestampedDuplicateQuery = timestampedDuplicateQuery.eq('xxiv_site_id', xxivSiteId);
+      }
+
+      const { data: timestampedDuplicateCheck } = await timestampedDuplicateQuery.limit(1).single();
 
       // If still duplicate, add random suffix
       if (timestampedDuplicateCheck) {
@@ -317,10 +390,12 @@ async function validateIndexPageConstraints(
   client: any,
   pageData: { is_index?: boolean; slug: string; page_folder_id?: string | null; error_page?: number | null; is_dynamic?: boolean },
   excludePageId?: string,
-  currentPageData?: { is_index: boolean; page_folder_id: string | null; is_dynamic?: boolean }
+  currentPageData?: { is_index: boolean; page_folder_id: string | null; is_dynamic?: boolean },
+  xxivSiteId?: string | null
 ): Promise<void> {
   // Rule 1: Index pages must have empty slug
-  if (pageData.is_index && pageData.slug.trim() !== '') {
+  const isHiddenIndexSlug = isXxivIndexSlug(pageData.slug, xxivSiteId);
+  if (pageData.is_index && pageData.slug.trim() !== '' && !isHiddenIndexSlug) {
     throw new Error('Index pages must have an empty slug');
   }
 
@@ -349,6 +424,10 @@ async function validateIndexPageConstraints(
       .eq('is_index', true)
       .is('page_folder_id', null)
       .is('deleted_at', null);
+
+    if (xxivSiteId !== undefined && xxivSiteId !== null) {
+      query = query.eq('xxiv_site_id', xxivSiteId);
+    }
 
     // Exclude current page if updating
     if (excludePageId) {
@@ -386,6 +465,13 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
     page_folder_id: normalizedPageFolderId,
   };
 
+  normalizedPageData.slug = applyXxivIndexSlug(
+    normalizedPageData.slug,
+    normalizedPageData.is_index || false,
+    normalizedPageFolderId,
+    normalizedPageData.xxiv_site_id
+  );
+
   // Validate index page constraints (no current page data for new pages)
   await validateIndexPageConstraints(
     client,
@@ -397,7 +483,8 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
       is_dynamic: normalizedPageData.is_dynamic || false,
     },
     undefined,
-    undefined
+    undefined,
+    normalizedPageData.xxiv_site_id
   );
 
   // Calculate content hash for page metadata
@@ -432,7 +519,13 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
 
   // If setting as index page, transfer from existing index page
   if (normalizedPageData.is_index) {
-    await transferIndexPage(client, data.id, normalizedPageFolderId, normalizedPageData.is_published || false);
+    await transferIndexPage(
+      client,
+      data.id,
+      normalizedPageFolderId,
+      normalizedPageData.is_published || false,
+      normalizedPageData.xxiv_site_id
+    );
   }
 
   return data;
@@ -454,6 +547,7 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
   if (!currentPage) {
     throw new Error('Page not found');
   }
+  const xxivSiteId = currentPage.xxiv_site_id ?? null;
 
   const normalizedUpdates: UpdatePageData =
     updates.page_folder_id !== undefined
@@ -472,13 +566,26 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
     is_dynamic: normalizedUpdates.is_dynamic !== undefined ? normalizedUpdates.is_dynamic : currentPage.is_dynamic,
   };
 
+  // Ensure XXIV index pages use a hidden slug to avoid cross-site collisions.
+  const normalizedIndexSlug = applyXxivIndexSlug(
+    mergedData.slug,
+    mergedData.is_index || false,
+    mergedData.page_folder_id,
+    xxivSiteId
+  );
+  if (normalizedIndexSlug !== mergedData.slug) {
+    mergedData.slug = normalizedIndexSlug;
+    normalizedUpdates.slug = normalizedIndexSlug;
+  }
+
   // Validate index page constraints if is_index or slug is being updated
   if (normalizedUpdates.is_index !== undefined || normalizedUpdates.slug !== undefined || normalizedUpdates.page_folder_id !== undefined) {
     await validateIndexPageConstraints(
       client,
       mergedData,
       id,
-      { is_index: currentPage.is_index, page_folder_id: currentPage.page_folder_id }
+      { is_index: currentPage.is_index, page_folder_id: currentPage.page_folder_id },
+      xxivSiteId
     );
   }
 
@@ -503,7 +610,7 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
       await fixOrphanedPageSlugs(orphanedPages);
     }
 
-    await transferIndexPage(client, id, folderIdForTransfer, currentPage.is_published);
+    await transferIndexPage(client, id, folderIdForTransfer, currentPage.is_published, xxivSiteId);
   }
 
   // Calculate new content hash based on merged data
@@ -856,6 +963,7 @@ export async function duplicatePage(pageId: string): Promise<Page> {
       slug: newSlug,
       is_published: false, // Always create as unpublished
       page_folder_id: originalPage.page_folder_id,
+      xxiv_site_id: originalPage.xxiv_site_id ?? null,
       order: newOrder,
       depth: originalPage.depth,
       is_index: false, // Don't duplicate index status

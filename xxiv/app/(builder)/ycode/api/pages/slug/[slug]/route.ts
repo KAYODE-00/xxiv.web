@@ -1,12 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getPageBySlug } from '@/lib/repositories/pageRepository';
-import { getPublishedLayers } from '@/lib/repositories/pageLayersRepository';
 import { noCache } from '@/lib/api-response';
 
 /**
  * GET /ycode/api/pages/slug/[slug]
  *
- * Get a page by slug
+ * Get a page by slug (scoped to site)
  */
 export async function GET(
   request: NextRequest,
@@ -14,7 +13,21 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
-    const page = await getPageBySlug(slug);
+
+    // 🔥 CRITICAL: get site ID from request
+    const siteId = request.headers.get('x-site-id');
+
+    if (!siteId) {
+      return noCache(
+        { error: 'Missing site context' },
+        400
+      );
+    }
+
+    // ✅ FIX: scope query to this site only
+    const page = await getPageBySlug(slug, {
+      xxiv_site_id: siteId,
+    });
 
     if (!page) {
       return noCache(
@@ -27,10 +40,15 @@ export async function GET(
       data: page,
     });
   } catch (error) {
-    console.error('Failed to fetch page:', error);
+    console.error('[GET /pages/slug] Failed:', error);
 
     return noCache(
-      { error: error instanceof Error ? error.message : 'Failed to fetch page' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch page',
+      },
       500
     );
   }

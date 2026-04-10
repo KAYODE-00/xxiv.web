@@ -70,6 +70,7 @@ export async function createSite(formData: FormData) {
       depth: 0,
       order: 0,
       is_published: false,
+      xxiv_site_id: site.id,
       settings: {
         xxiv: {
           site_id: site.id,

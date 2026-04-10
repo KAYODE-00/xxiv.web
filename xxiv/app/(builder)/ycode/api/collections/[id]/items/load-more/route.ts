@@ -11,6 +11,16 @@ import type { Layer } from '@/types';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function getXxivSiteIdFromRequest(request: NextRequest): string | null {
+  const { searchParams } = new URL(request.url);
+  return (
+    searchParams.get('xxiv_site_id') ||
+    request.headers.get('x-xxiv-site-id') ||
+    request.cookies.get('xxiv_site_id')?.value ||
+    null
+  );
+}
+
 /**
  * POST /ycode/api/collections/[id]/items/load-more
  * Get paginated collection items for "Load More" functionality
@@ -99,8 +109,9 @@ export async function POST(
     }
 
     // Fetch pages and folders for link resolution using repository functions
+    const xxivSiteId = getXxivSiteIdFromRequest(request);
     const [pages, folders] = await Promise.all([
-      getAllPages(),
+      getAllPages(undefined, xxivSiteId),
       getAllPageFolders(),
     ]);
 

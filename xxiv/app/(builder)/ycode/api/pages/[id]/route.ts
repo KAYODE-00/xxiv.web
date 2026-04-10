@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getPageById, updatePage, deletePage } from '@/lib/repositories/pageRepository';
 import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
 import { noCache } from '@/lib/api-response';
+import { stripXxivIndexSlug } from '@/lib/xxiv/index-slug';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,11 @@ function stripXxivSlugSuffix(slug: string, siteId: string): string {
     return slug.slice(0, -suffix.length);
   }
   return slug;
+}
+
+function normalizeXxivPageSlugForResponse(page: any, siteId: string): any {
+  const cleaned = stripXxivSlugSuffix(page.slug, siteId);
+  return { ...page, slug: stripXxivIndexSlug(cleaned, siteId) };
 }
 
 /**
@@ -40,7 +46,7 @@ export async function GET(
     }
 
     return noCache({
-      data: xxivSiteId ? { ...page, slug: stripXxivSlugSuffix(page.slug, xxivSiteId) } : page,
+      data: xxivSiteId ? normalizeXxivPageSlugForResponse(page, xxivSiteId) : page,
     });
   } catch (error) {
     console.error('Failed to fetch page:', error);
@@ -177,7 +183,7 @@ export async function PUT(
     }
 
     return noCache({
-      data: xxivSiteId ? { ...page, slug: stripXxivSlugSuffix(page.slug, xxivSiteId) } : page,
+      data: xxivSiteId ? normalizeXxivPageSlugForResponse(page, xxivSiteId) : page,
     });
   } catch (error) {
     console.error('Failed to update page:', error);

@@ -7,6 +7,7 @@ import { generateColorVariablesCss } from '@/lib/repositories/colorVariableRepos
 import { generatePageMetadata } from '@/lib/generate-page-metadata';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 
 async function fetchPreviewDraftCss() {
   const settings = await getSettingsByKeys(['draft_css']);
@@ -17,9 +18,15 @@ async function fetchPreviewDraftCss() {
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const resolvedSearchParams = await searchParams;
+  const siteFromQuery = typeof resolvedSearchParams?.xxiv_site_id === 'string'
+    ? resolvedSearchParams.xxiv_site_id
+    : undefined;
+  const cookieStore = await cookies();
+  const xxivSiteId = siteFromQuery || cookieStore.get('xxiv_site_id')?.value || undefined;
   // Fetch draft homepage data (no caching)
-  const data = await fetchHomepage(false);
+  const data = await fetchHomepage(false, undefined, undefined, undefined, xxivSiteId);
 
   // If no homepage, show default landing page
   if (!data || !data.pageLayers) {
@@ -111,8 +118,14 @@ export default async function Home() {
 }
 
 // Generate metadata
-export async function generateMetadata(): Promise<Metadata> {
-  const data = await fetchHomepage(false);
+export async function generateMetadata({ searchParams }: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }): Promise<Metadata> {
+  const resolvedSearchParams = await searchParams;
+  const siteFromQuery = typeof resolvedSearchParams?.xxiv_site_id === 'string'
+    ? resolvedSearchParams.xxiv_site_id
+    : undefined;
+  const cookieStore = await cookies();
+  const xxivSiteId = siteFromQuery || cookieStore.get('xxiv_site_id')?.value || undefined;
+  const data = await fetchHomepage(false, undefined, undefined, undefined, xxivSiteId);
 
   if (!data) {
     return {

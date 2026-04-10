@@ -25,6 +25,7 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
+import { getXxivSiteIdFromBrowser } from '@/lib/xxiv/realtime-namespace';
 
 // 5. Types
 import type { Page } from '@/types';
@@ -243,7 +244,9 @@ export default function HeaderBar({
       ? buildLocalizedDynamicPageUrl(currentPage, folders, collectionItemSlug, selectedLocale, localeTranslations)
       : localizedPagePath;
 
-    return `/ycode/preview${path === '/' ? '' : path}`;
+    const siteId = typeof window !== 'undefined' ? getXxivSiteIdFromBrowser() : null;
+    const qs = siteId ? `?xxiv_site_id=${encodeURIComponent(siteId)}` : '';
+    return `/ycode/preview${path === '/' ? '' : path}${qs}`;
   }, [currentPage, folders, localizedPagePath, collectionItemSlug, selectedLocale, localeTranslations]);
 
   // Build published URL (for the link in the center)

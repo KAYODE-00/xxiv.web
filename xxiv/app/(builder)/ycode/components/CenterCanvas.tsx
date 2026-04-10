@@ -59,6 +59,7 @@ import RichTextEditorSheet from './RichTextEditorSheet';
 import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 import { getTranslationValue } from '@/lib/localisation-utils';
 import { cn } from '@/lib/utils';
+import { getXxivSiteIdFromBrowser } from '@/lib/xxiv/realtime-namespace';
 import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollectionLayer, canLayerHaveLink, updateLayerProps, removeRichTextSublayer } from '@/lib/layer-utils';
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
 import { buildFieldGroupsForLayer, flattenFieldGroups, filterFieldGroupsByType, SIMPLE_TEXT_FIELD_TYPES } from '@/lib/collection-field-utils';
@@ -1628,7 +1629,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
       ? buildLocalizedDynamicPageUrl(currentPage, folders, collectionItemSlug, selectedLocale, localeTranslations)
       : buildLocalizedSlugPath(currentPage, folders, 'page', selectedLocale, localeTranslations);
 
-    return `/ycode/preview${path === '/' ? '' : path}`;
+    const siteId = typeof window !== 'undefined' ? getXxivSiteIdFromBrowser() : null;
+    const qs = siteId ? `?xxiv_site_id=${encodeURIComponent(siteId)}` : '';
+    return `/ycode/preview${path === '/' ? '' : path}${qs}`;
   }, [currentPage, folders, currentPageCollectionItemId, collectionItemsFromStore, collectionFieldsFromStore, selectedLocale, localeTranslations]);
 
   // Reload preview iframe every time preview mode opens (covers all change sources:
