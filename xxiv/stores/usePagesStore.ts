@@ -114,6 +114,15 @@ type PagesStore = PagesState & PagesActions;
  */
 const mcpSyncedPages = new Set<string>();
 
+/**
+ * Tracks temp page IDs while the create API call is in-flight.
+ * Allows update operations to wait for the real ID instead of failing.
+ */
+const pendingTempPageIds = new Map<
+  string,
+  { promise: Promise<string>; resolve: (id: string) => void; reject: (error: unknown) => void }
+>();
+
 export function markPageMcpSynced(pageId: string): void {
   mcpSyncedPages.add(pageId);
 }
@@ -1536,6 +1545,16 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const tempId = `temp-page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const tempPublishKey = `temp-${Date.now()}`;
 
+    if (!pendingTempPageIds.has(tempId)) {
+      let resolve!: (id: string) => void;
+      let reject!: (error: unknown) => void;
+      const promise = new Promise<string>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      pendingTempPageIds.set(tempId, { promise, resolve, reject });
+    }
+
     // Create temporary page object
     const tempPage: Page = {
       id: tempId,
@@ -1669,6 +1688,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
       if (response.error) {
         console.error('[usePagesStore.createPage] Error:', response.error);
+        const pending = pendingTempPageIds.get(tempId);
+        if (pending) {
+          pending.reject(new Error(response.error));
+          pendingTempPageIds.delete(tempId);
+        }
         // Rollback: Remove temp page
         set({
           pages: pages, // Original pages without temp
@@ -1699,13 +1723,30 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           isLoading: false
         });
 
+        const pending = pendingTempPageIds.get(tempId);
+        if (pending) {
+          pending.resolve(response.data.id);
+          pendingTempPageIds.delete(tempId);
+        }
+
         return { success: true, data: response.data, tempId };
+      }
+
+      const pending = pendingTempPageIds.get(tempId);
+      if (pending) {
+        pending.reject(new Error('No data returned'));
+        pendingTempPageIds.delete(tempId);
       }
 
       return { success: false, error: 'No data returned' };
     } catch (error) {
       console.error('[usePagesStore.createPage] Exception:', error);
       const errorMsg = error instanceof Error ? error.message : 'Failed to create page';
+      const pending = pendingTempPageIds.get(tempId);
+      if (pending) {
+        pending.reject(error);
+        pendingTempPageIds.delete(tempId);
+      }
       // Rollback: Remove temp page
       set({
         pages: pages,
@@ -1718,6 +1759,20 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   updatePage: async (pageId, updates) => {
+    if (pageId.startsWith('temp-page-')) {
+      const pending = pendingTempPageIds.get(pageId);
+      if (pending) {
+        try {
+          const realId = await pending.promise;
+          return await get().updatePage(realId, updates);
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Page is still being created. Please try again.';
+          return { success: false, error: msg };
+        }
+      }
+      return { success: false, error: 'Page is still being created. Please try again.' };
+    }
+
     const { pages } = get();
 
     // Store original state for rollback
