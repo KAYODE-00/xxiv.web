@@ -22,9 +22,15 @@ export async function createDashboardClient() {
         return cookieStore.getAll();
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) =>
-          cookieStore.set(name, value, options)
-        );
+        // Cookies can only be set in Server Actions/Route Handlers, not Server Components
+        // This is silently ignored in layouts; auth refresh should happen in Route Handlers
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          // Silently fail if cookies can't be set (e.g., in server components)
+        }
       },
     },
   });
