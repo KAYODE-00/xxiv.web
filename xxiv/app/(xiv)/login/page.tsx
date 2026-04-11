@@ -431,11 +431,11 @@ export default function LoginPage() {
             id="login-google"
             type="button"
             onClick={handleGoogleLogin}
-            disabled={googleLoading || !supabase}
+            disabled={googleLoading}
             style={{
               ...styles.googleBtn,
-              opacity: googleLoading || !supabase ? 0.6 : 1,
-              cursor: googleLoading || !supabase ? 'not-allowed' : 'pointer',
+              opacity: googleLoading ? 0.6 : 1,
+              cursor: googleLoading ? 'not-allowed' : 'pointer',
             }}
             onMouseEnter={(e) => { if (!googleLoading) (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
             onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = 'transparent'; }}
