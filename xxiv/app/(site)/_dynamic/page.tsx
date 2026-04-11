@@ -6,6 +6,7 @@ import PasswordForm from '@/components/PasswordForm';
 import { fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { redirect } from 'next/navigation';
 
 // Internal pagination path: always dynamic/no-store.
 export const dynamic = 'force-dynamic';
@@ -40,21 +41,7 @@ export default async function DynamicHome({ searchParams }: DynamicHomeProps) {
   const data = await fetchHomepage(true, paginationContext);
 
   if (!data || !data.pageLayers) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center p-8 flex flex-col items-center justify-center gap-2">
-          <h1 className="text-xl font-semibold text-neutral-900">
-            Welcome to Ycode
-          </h1>
-          <Link
-            href="/ycode"
-            className=" bg-blue-500 text-white text-sm font-medium h-8 flex items-center justify-center px-3 rounded-lg transition-colors"
-          >
-            Get started
-          </Link>
-        </div>
-      </div>
-    );
+    return  redirect('/dashboard');
   }
 
   const folders = await fetchFoldersForAuth(true);

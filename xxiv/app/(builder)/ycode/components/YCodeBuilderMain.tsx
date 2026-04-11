@@ -227,30 +227,12 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     }
   }, [editingComponentId, currentPageId, setDraftLayers]);
 
-  // Check if Supabase is configured, redirect to setup if not
+  // Check if Supabase is configured (welcome wizard is disabled)
   const [supabaseConfigured, setSupabaseConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const checkSupabaseConfig = async () => {
-      try {
-        const response = await fetch('/ycode/api/setup/status');
-        const data = await response.json();
-
-        if (!data.is_configured) {
-          // Redirect to setup wizard
-          router.push('/ycode/welcome');
-          return;
-        }
-
-        setSupabaseConfigured(true);
-      } catch (err) {
-        console.error('Failed to check Supabase config:', err);
-        // On error, redirect to setup to be safe
-        router.push('/ycode/welcome');
-      }
-    };
-
-    checkSupabaseConfig();
+    // Skip welcome wizard - setup is always considered complete
+    setSupabaseConfigured(true);
   }, [router]);
 
   // Sync viewportMode with activeBreakpoint in store
@@ -1847,14 +1829,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             </Button>
           </form>
 
-          <div className="mt-4 text-center">
-            <p className="text-xs text-white/50">
-              First time here?{' '}
-              <Link href="/ycode/welcome" className="text-white/80">
-                Complete setup
-              </Link>
-            </p>
-          </div>
         </div>
 
       </div>

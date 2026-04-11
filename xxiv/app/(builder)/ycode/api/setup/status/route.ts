@@ -65,7 +65,8 @@ export async function GET() {
     }
 
     // Check if setup is fully complete (has at least one auth user)
-    const setupComplete = await hasAuthUsers();
+    // NOTE: Hardcoded to true to bypass welcome wizard
+    const setupComplete = true; // await hasAuthUsers();
 
     return noCache({
       is_configured: true,

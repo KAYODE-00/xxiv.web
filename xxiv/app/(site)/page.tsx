@@ -7,6 +7,7 @@ import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-pa
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
 import { getSiteBaseUrl } from '@/lib/url-utils';
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 
 // Static by default for performance, dynamic only when pagination is requested
 export const revalidate = false; // Cache indefinitely until publish invalidates
@@ -89,21 +90,7 @@ export default async function Home() {
 
   // If no published homepage exists, show default landing page
   if (!data || !data.pageLayers) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center p-8 flex flex-col items-center justify-center gap-2">
-          <h1 className="text-xl font-semibold text-neutral-900">
-            Welcome to Ycode
-          </h1>
-          <Link
-            href="/ycode"
-            className=" bg-blue-500 text-white text-sm font-medium h-8 flex items-center justify-center px-3 rounded-lg transition-colors"
-          >
-            Get started
-          </Link>
-        </div>
-      </div>
-    );
+    return   redirect('/dashboard');
   }
 
   // Load all global settings early so error pages also get global custom code
