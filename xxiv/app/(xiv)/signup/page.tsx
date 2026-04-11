@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -74,8 +72,8 @@ const styles = {
 
   input: {
     width: '100%',
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.1)',
+    background: '#000000',
+    border: '1px solid #666666',
     borderRadius: '10px',
     padding: '12px 16px',
     fontSize: '15px',
@@ -88,8 +86,8 @@ const styles = {
 
   inputWithToggle: {
     width: '100%',
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.1)',
+    background: '#000000',
+    border: '1px solid #666666',
     borderRadius: '10px',
     padding: '12px 44px 12px 16px',
     fontSize: '15px',
@@ -388,7 +386,7 @@ export default function SignupPage() {
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus {
           -webkit-text-fill-color: #fff;
-          -webkit-box-shadow: 0 0 0px 1000px rgba(255,255,255,0.06) inset;
+          -webkit-box-shadow: 0 0 0px 1000px #000000 inset;
           transition: background-color 5000s ease-in-out 0s;
         }
       `}</style>
@@ -420,8 +418,8 @@ export default function SignupPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   style={styles.input}
-                  onFocus={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.3)'; e.target.style.background = 'rgba(255,255,255,0.09)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.background = 'rgba(255,255,255,0.06)'; }}
+                  onFocus={(e) => { e.target.style.borderColor = '#888888'; }}
+                  onBlur={(e) => { e.target.style.borderColor = '#666666'; }}
                 />
               </div>
 
@@ -436,8 +434,8 @@ export default function SignupPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={styles.input}
-                  onFocus={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.3)'; e.target.style.background = 'rgba(255,255,255,0.09)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.background = 'rgba(255,255,255,0.06)'; }}
+                  onFocus={(e) => { e.target.style.borderColor = '#888888'; }}
+                  onBlur={(e) => { e.target.style.borderColor = '#666666'; }}
                 />
               </div>
 
@@ -453,8 +451,8 @@ export default function SignupPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     style={styles.inputWithToggle}
-                    onFocus={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.3)'; e.target.style.background = 'rgba(255,255,255,0.09)'; }}
-                    onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.background = 'rgba(255,255,255,0.06)'; }}
+                    onFocus={(e) => { e.target.style.borderColor = '#888888'; }}
+                    onBlur={(e) => { e.target.style.borderColor = '#666666'; }}
                   />
                   <button
                     type="button"
@@ -479,8 +477,8 @@ export default function SignupPage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     style={styles.inputWithToggle}
-                    onFocus={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.3)'; e.target.style.background = 'rgba(255,255,255,0.09)'; }}
-                    onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.background = 'rgba(255,255,255,0.06)'; }}
+                    onFocus={(e) => { e.target.style.borderColor = '#888888'; }}
+                    onBlur={(e) => { e.target.style.borderColor = '#666666'; }}
                   />
                   <button
                     type="button"

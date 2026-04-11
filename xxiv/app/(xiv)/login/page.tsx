@@ -72,8 +72,8 @@ const styles = {
 
   input: {
     width: '100%',
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.1)',
+    background: '#000000',
+    border: '1px solid #666666',
     borderRadius: '10px',
     padding: '12px 16px',
     fontSize: '15px',
@@ -86,8 +86,8 @@ const styles = {
 
   inputWithToggle: {
     width: '100%',
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.1)',
+    background: '#000000',
+    border: '1px solid #666666',
     borderRadius: '10px',
     padding: '12px 44px 12px 16px',
     fontSize: '15px',
@@ -300,7 +300,10 @@ export default function LoginPage() {
   }
 
   async function handleGoogleLogin() {
-    if (!supabase) return;
+    if (!supabase) {
+      setError('Authentication service is not configured. Please contact support.');
+      return;
+    }
 
     setError('');
     setGoogleLoading(true);
@@ -319,7 +322,8 @@ export default function LoginPage() {
         setGoogleLoading(false);
       }
       // On success, browser redirects to Google — no cleanup needed
-    } catch {
+    } catch (error) {
+      console.error('Google login error:', error);
       setError('Google sign-in failed. Please try again.');
       setGoogleLoading(false);
     }
@@ -364,8 +368,8 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 style={styles.input}
-                onFocus={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.3)'; e.target.style.background = 'rgba(255,255,255,0.09)'; }}
-                onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.background = 'rgba(255,255,255,0.06)'; }}
+                onFocus={(e) => { e.target.style.borderColor = '#888888'; }}
+                onBlur={(e) => { e.target.style.borderColor = '#666666'; }}
               />
             </div>
 
@@ -381,8 +385,8 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   style={styles.inputWithToggle}
-                  onFocus={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.3)'; e.target.style.background = 'rgba(255,255,255,0.09)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.background = 'rgba(255,255,255,0.06)'; }}
+                  onFocus={(e) => { e.target.style.borderColor = '#888888'; }}
+                  onBlur={(e) => { e.target.style.borderColor = '#666666'; }}
                 />
                 <button
                   type="button"
@@ -431,13 +435,13 @@ export default function LoginPage() {
             id="login-google"
             type="button"
             onClick={handleGoogleLogin}
-            disabled={googleLoading}
+            disabled={googleLoading || !supabase}
             style={{
               ...styles.googleBtn,
-              opacity: googleLoading ? 0.6 : 1,
-              cursor: googleLoading ? 'not-allowed' : 'pointer',
+              opacity: googleLoading || !supabase ? 0.6 : 1,
+              cursor: googleLoading || !supabase ? 'not-allowed' : 'pointer',
             }}
-            onMouseEnter={(e) => { if (!googleLoading) (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
+            onMouseEnter={(e) => { if (!googleLoading && supabase) (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
             onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = 'transparent'; }}
           >
             <GoogleIcon />
