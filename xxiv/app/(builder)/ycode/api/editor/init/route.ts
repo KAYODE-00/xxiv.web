@@ -26,7 +26,17 @@ function getSupabaseEnvConfig(): { url: string; anonKey: string } | null {
 function pageBelongsToXxivSite(page: any, siteId: string) {
   const settings = page?.settings;
   const tagged = settings?.xxiv?.site_id;
-  return typeof tagged === 'string' && tagged === siteId;
+  if (typeof tagged === 'string' && tagged === siteId) return true;
+  if (typeof page?.xxiv_site_id === 'string' && page.xxiv_site_id === siteId) return true;
+  return false;
+}
+
+function pageIsGlobalErrorPage(page: any, siteId: string) {
+  if (page?.error_page == null) return false;
+  const tagged = page?.settings?.xxiv?.site_id;
+  const ownerId = page?.xxiv_site_id;
+  const hasOwner = typeof ownerId === 'string' && ownerId.length > 0;
+  return !hasOwner && (tagged == null || tagged === siteId);
 }
 
 function stripXxivSlugSuffix(slug: string, siteId: string): string {
@@ -117,7 +127,7 @@ export async function GET(request: NextRequest) {
       }
 
       const scopedPages = (pages || [])
-        .filter((p) => pageBelongsToXxivSite(p, xxivSiteId))
+        .filter((p) => pageBelongsToXxivSite(p, xxivSiteId) || pageIsGlobalErrorPage(p, xxivSiteId))
         .map((p) => normalizeXxivPageSlugForResponse(p, xxivSiteId));
       const allowedPageIds = new Set(scopedPages.map((p) => p.id));
       const scopedDrafts = (drafts || []).filter((d) => allowedPageIds.has(d.page_id));

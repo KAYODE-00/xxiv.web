@@ -97,7 +97,10 @@ export async function getAllPages(filters?: QueryFilters, xxivSiteId?: string | 
     .is('deleted_at', null);
 
   if (xxivSiteId !== undefined && xxivSiteId !== null) {
-    query = query.eq('xxiv_site_id', xxivSiteId);
+    // Include site-scoped pages plus global error pages (error_page != null, xxiv_site_id is null)
+    query = query.or(
+      `xxiv_site_id.eq.${xxivSiteId},and(error_page.not.is.null,xxiv_site_id.is.null)`
+    );
   }
 
   // Apply filters if provided

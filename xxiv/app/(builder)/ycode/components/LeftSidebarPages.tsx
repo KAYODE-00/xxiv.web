@@ -286,6 +286,8 @@ export default function LeftSidebarPages({
     return true;
   };
 
+
+
   // Handle page selection with unsaved changes check
   const handlePageSelect = async (pageId: string) => {
     const canProceed = await checkBeforeSelectionChange();
@@ -372,53 +374,8 @@ export default function LeftSidebarPages({
     }
   };
 
-//   const handleSavePage = async (data: PageFormData) => {
-//   if (!editingPage?.id) {
-//     console.error(' No editingPage or pageId');
-//     return;
-//   }
-
-//   const pageId = editingPage.id;
-
-//   const pageUpdates = {
-//     name: data.name?.trim(),
-//     slug: data.slug?.trim(),
-//     page_folder_id: data.page_folder_id || null,
-//     is_index: data.is_index || false,
-//     settings: data.settings || {},
-//   };
-
-//   console.log(' Saving page:', pageId, pageUpdates);
-
-//   try {
-//     const result = await updatePage(pageId, pageUpdates);
-
-//     if (result?.error) {
-//       console.error(' Failed to save page:', result.error);
-
-//       if (result.error === 'Page not found') {
-//         alert('This page no longer exists. Reloading...');
-//         window.location.reload();
-//       }
-
-//       return;
-//     }
-
-//     console.log(' Page saved successfully');
-
-//     if (livePageUpdates) {
-//       livePageUpdates.broadcastPageUpdate(pageId, pageUpdates);
-//     }
-
-//     setShowPageSettings(false);
-//     setEditingPage(null);
-
-//   } catch (error) {
-//     console.error(' Unexpected save error:', error);
-//     alert('Something went wrong while saving.');
-//   }
-// };
-  const handleSaveFolder = async (data: FolderFormData) => {
+  
+const handleSaveFolder = async (data: FolderFormData) => {
     if (!editingFolder) return;
 
     // Update in background
@@ -942,3 +899,4 @@ export default function LeftSidebarPages({
     </>
   );
 }
+
