@@ -1,7 +1,6 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 
 export default function LandingPage() {
@@ -17,10 +16,7 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
         <div className="flex items-center gap-2">
-          <div className="bg-white p-1 rounded">
-             <Icon name="ycode-logo" className="size-5 text-black" />
-          </div>
-          <span className="font-bold text-xl tracking-tight">Ycode</span>
+          <span className="font-bold text-xl tracking-tight">XXIV</span>
         </div>
         <div className="hidden md:flex gap-8 text-sm text-neutral-400 font-medium">
           <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -28,7 +24,7 @@ export default function LandingPage() {
           <a href="#docs" className="hover:text-white transition-colors">Docs</a>
         </div>
         <Button
-          variant="outline" 
+          variant="outline"
           className="border-white/10 bg-white text-black transition-all"
           onClick={handleGetStarted}
         >
@@ -60,17 +56,17 @@ xxiv
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               onClick={handleGetStarted}
               className="h-14 px-10 bg-white text-black hover:bg-neutral-200 text-base font-semibold transition-transform hover:scale-105 active:scale-95"
             >
               Open Dashboard
-              <Icon name="arrow-right" className="ml-2 size-4" />
+              <span className="ml-2">→</span>
             </Button>
-            <Button 
-              size="lg" 
-              variant="ghost" 
+            <Button
+              size="lg"
+              variant="ghost"
               className="h-14 px-8 text-neutral-400 hover:text-white hover:bg-white/5"
             >
               View Templates
