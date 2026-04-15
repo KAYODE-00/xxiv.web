@@ -2,6 +2,12 @@
 
 import { requireAuthUser, createDashboardClient } from '@/lib/xxiv/server-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import {
+  addCFCustomDomain,
+  deleteCFProject,
+  getCFDomainStatus,
+  removeCFCustomDomain,
+} from '@/lib/xxiv/cloudflare-pages';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 
@@ -52,6 +58,7 @@ export async function createSite(formData: FormData) {
       page_folder_id: null,
       home_page_id: null,
       is_published: false,
+      publish_status: 'unpublished',
     })
     .select()
     .single();
@@ -127,6 +134,10 @@ export async function deleteSite(siteId: string) {
   if (siteError) throw siteError;
   if (!site) throw new Error('Site not found');
 
+  if (site.cf_project_name) {
+    await deleteCFProject(site.cf_project_name);
+  }
+
   // Delete all Ycode pages belonging to this site (tagged in settings)
   const { data: pages, error: pagesError } = await admin
     .from('pages')
@@ -147,6 +158,136 @@ export async function deleteSite(siteId: string) {
   if (deleteError) throw deleteError;
 
   revalidatePath('/dashboard');
+}
+
+export async function getSiteSettings(siteId: string) {
+  const user = await requireAuthUser();
+  const supabase = await createDashboardClient();
+
+  const { data: site, error } = await supabase
+    .from('xxiv_sites')
+    .select('*')
+    .eq('id', siteId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (error) throw error;
+  return site;
+}
+
+export async function connectCustomDomain(siteId: string, rawDomain: string) {
+  const user = await requireAuthUser();
+  const supabase = await createDashboardClient();
+  const admin = await getSupabaseAdmin();
+  if (!admin) throw new Error('Supabase not configured');
+
+  const domain = rawDomain.trim().toLowerCase();
+  if (!domain) throw new Error('Domain is required');
+
+  const { data: site, error } = await supabase
+    .from('xxiv_sites')
+    .select('id, slug, cf_project_name, live_url')
+    .eq('id', siteId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (error || !site) throw new Error('Site not found');
+  if (!site.cf_project_name || !site.live_url) {
+    throw new Error('Publish the site before connecting a custom domain');
+  }
+
+  await addCFCustomDomain(site.cf_project_name, domain);
+
+  const { error: updateError } = await admin
+    .from('xxiv_sites')
+    .update({
+      custom_domain: domain,
+      custom_domain_verified: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', siteId);
+
+  if (updateError) throw updateError;
+
+  revalidatePath('/dashboard');
+  revalidatePath(`/sites/${siteId}/settings`);
+
+  return {
+    domain,
+    target: site.live_url.replace(/^https?:\/\//, ''),
+  };
+}
+
+export async function checkCustomDomainStatus(siteId: string) {
+  const user = await requireAuthUser();
+  const supabase = await createDashboardClient();
+  const admin = await getSupabaseAdmin();
+  if (!admin) throw new Error('Supabase not configured');
+
+  const { data: site, error } = await supabase
+    .from('xxiv_sites')
+    .select('id, cf_project_name, custom_domain')
+    .eq('id', siteId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (error || !site) throw new Error('Site not found');
+  if (!site.cf_project_name || !site.custom_domain) {
+    throw new Error('No custom domain connected');
+  }
+
+  const status = await getCFDomainStatus(site.cf_project_name, site.custom_domain);
+
+  if (status.verified) {
+    await admin
+      .from('xxiv_sites')
+      .update({
+        custom_domain_verified: true,
+        live_url: `https://${site.custom_domain}`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', siteId);
+  }
+
+  revalidatePath('/dashboard');
+  revalidatePath(`/sites/${siteId}/settings`);
+
+  return status;
+}
+
+export async function removeCustomDomain(siteId: string) {
+  const user = await requireAuthUser();
+  const supabase = await createDashboardClient();
+  const admin = await getSupabaseAdmin();
+  if (!admin) throw new Error('Supabase not configured');
+
+  const { data: site, error } = await supabase
+    .from('xxiv_sites')
+    .select('id, cf_project_name, custom_domain')
+    .eq('id', siteId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (error || !site) throw new Error('Site not found');
+
+  if (site.cf_project_name && site.custom_domain) {
+    await removeCFCustomDomain(site.cf_project_name, site.custom_domain);
+  }
+
+  const { error: updateError } = await admin
+    .from('xxiv_sites')
+    .update({
+      custom_domain: null,
+      custom_domain_verified: false,
+      live_url: site.cf_project_name ? `https://${site.cf_project_name}.pages.dev` : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', siteId);
+
+  if (updateError) throw updateError;
+
+  revalidatePath('/dashboard');
+  revalidatePath(`/sites/${siteId}/settings`);
 }
 
 export async function openSiteEditor(siteId: string) {

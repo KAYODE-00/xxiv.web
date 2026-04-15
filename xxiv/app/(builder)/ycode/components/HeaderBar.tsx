@@ -33,7 +33,6 @@ import type { User } from '@supabase/supabase-js';
 import ActiveUsersInHeader from './ActiveUsersInHeader';
 import InviteUserButton from './InviteUserButton';
 import PublishPopover from './PublishPopover';
-import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { Separator } from '@/components/ui/separator';
 import { BackupRestoreDialog } from '@/components/project/BackupRestoreDialog';
@@ -126,13 +125,34 @@ export default function HeaderBar({
     return 'dark';
   });
   const [baseUrl, setBaseUrl] = useState<string>('');
+  const [xxivSiteId, setXxivSiteId] = useState<string | null>(null);
+  const [xxivLiveUrl, setXxivLiveUrl] = useState<string | null>(null);
   const [hasUpdate, setHasUpdate] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
 
   // Get current host after mount
   useEffect(() => {
     setBaseUrl(window.location.protocol + '//' + window.location.host);
+    setXxivSiteId(getXxivSiteIdFromBrowser());
   }, []);
+
+  useEffect(() => {
+    if (!xxivSiteId) return;
+
+    const loadSiteInfo = async () => {
+      try {
+        const response = await fetch(`/ycode/api/xxiv/site-info?site_id=${encodeURIComponent(xxivSiteId)}`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        setXxivLiveUrl(typeof data?.live_url === 'string' ? data.live_url : null);
+      } catch (error) {
+        console.error('Failed to load XXIV site info:', error);
+      }
+    };
+
+    loadSiteInfo();
+  }, [xxivSiteId]);
 
   // Check for updates on mount
   useEffect(() => {
@@ -262,6 +282,27 @@ export default function HeaderBar({
 
     return path === '/' ? '' : path;
   }, [currentPage, isSettingsRoute, storePages, folders, localizedPagePath, collectionItemSlug, selectedLocale, localeTranslations]);
+
+  const liveSiteUrl = useMemo(() => {
+    if (!publishedUrl && !xxivLiveUrl) return baseUrl;
+    if (!xxivLiveUrl) return `${baseUrl}${publishedUrl}`;
+
+    try {
+      const liveBase = new URL(xxivLiveUrl);
+      return `${liveBase.origin}${publishedUrl}`;
+    } catch {
+      return xxivLiveUrl;
+    }
+  }, [baseUrl, publishedUrl, xxivLiveUrl]);
+
+  const liveSiteLabel = useMemo(() => {
+    if (!xxivLiveUrl) return baseUrl;
+    try {
+      return new URL(xxivLiveUrl).host;
+    } catch {
+      return xxivLiveUrl;
+    }
+  }, [baseUrl, xxivLiveUrl]);
 
   // Apply theme to HTML element
   useEffect(() => {
@@ -533,10 +574,10 @@ export default function HeaderBar({
           asChild
         >
           <a
-            href={baseUrl + publishedUrl} target="_blank"
+            href={liveSiteUrl} target="_blank"
             rel="noopener noreferrer"
           >
-            {baseUrl}
+            {liveSiteLabel}
           </a>
         </Button>
 
@@ -614,6 +655,9 @@ export default function HeaderBar({
           baseUrl={baseUrl}
           publishedUrl={publishedUrl}
           onPublishSuccess={onPublishSuccess}
+          xxivSiteId={xxivSiteId}
+          xxivLiveUrl={xxivLiveUrl}
+          onXxivPublishSuccess={setXxivLiveUrl}
         />
 
       </div>

@@ -2893,7 +2893,7 @@ async function injectCollectionDataForHtml(
  * @param isPublished - Whether to fetch published (true) or draft (false) assets
  * @param components - Available components, needed to resolve assets from rich-text embedded components
  */
-async function resolveAllAssets(
+export async function resolveAllAssets(
   layers: Layer[],
   isPublished: boolean = true,
   components?: Component[],
@@ -3313,7 +3313,7 @@ function renderTiptapToHtml(
  * Convert a Layer to HTML string
  * Handles common layer types and their attributes
  */
-function layerToHtml(
+export function layerToHtml(
   layer: Layer,
   collectionItemId?: string,
   pages?: Page[],

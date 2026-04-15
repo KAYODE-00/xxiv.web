@@ -20,7 +20,7 @@ import { setSetting } from '@/lib/repositories/settingsRepository';
  * Extract all Tailwind classes from a layer tree.
  * Replicates the client-side extractClassesFromLayers logic.
  */
-function extractClassesFromLayers(layers: Layer[]): Set<string> {
+export function extractClassesFromLayers(layers: Layer[]): Set<string> {
   const classes = new Set<string>();
   const processedComponentIds = new Set<string>();
 
@@ -97,10 +97,26 @@ async function getCompiler() {
 /**
  * Generate CSS from an array of Tailwind class names.
  */
-async function compileCss(classNames: string[]): Promise<string> {
+export async function compileCss(classNames: string[]): Promise<string> {
   if (classNames.length === 0) return '/* No classes to generate */';
   const compiler = await getCompiler();
   return compiler.build(classNames);
+}
+
+export async function generateCssFromLayers(
+  layers: Layer[],
+  components: Component[] = [],
+): Promise<string> {
+  const allLayers: Layer[] = [...layers];
+
+  for (const component of components) {
+    if (component.layers && Array.isArray(component.layers)) {
+      allLayers.push(...component.layers);
+    }
+  }
+
+  const classes = extractClassesFromLayers(allLayers);
+  return compileCss(Array.from(classes));
 }
 
 /**

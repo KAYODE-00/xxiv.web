@@ -40,6 +40,9 @@ interface PublishPopoverProps {
   publishedUrl: string;
   isDisabled?: boolean;
   onPublishSuccess: () => void;
+  xxivSiteId?: string | null;
+  xxivLiveUrl?: string | null;
+  onXxivPublishSuccess?: (url: string) => void;
 }
 
 export default function PublishPopover({
@@ -49,11 +52,17 @@ export default function PublishPopover({
   publishedUrl,
   isDisabled = false,
   onPublishSuccess,
+  xxivSiteId = null,
+  xxivLiveUrl = null,
+  onXxivPublishSuccess,
 }: PublishPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [changeCounts, setChangeCounts] = useState<PublishPreviewCounts | null>(null);
   const [isLoadingCount, setIsLoadingCount] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
+  const [publishStepLabel, setPublishStepLabel] = useState<string | null>(null);
+  const [deployError, setDeployError] = useState<string | null>(null);
+  const [liveUrl, setLiveUrl] = useState<string | null>(xxivLiveUrl);
   const [isReverting, setIsReverting] = useState(false);
   const [isRevertDialogOpen, setIsRevertDialogOpen] = useState(false);
 
@@ -61,6 +70,10 @@ export default function PublishPopover({
   const publishedAt = getSettingByKey('published_at');
 
   // Load changes count when popover opens
+  useEffect(() => {
+    setLiveUrl(xxivLiveUrl);
+  }, [xxivLiveUrl]);
+
   useEffect(() => {
     if (isOpen) {
       loadChangesCount();
@@ -82,6 +95,8 @@ export default function PublishPopover({
 
   const handlePublishAll = useCallback(async () => {
     try {
+      setDeployError(null);
+      setPublishStepLabel('Publishing content...');
       setIsPublishing(true);
 
       const result = await publishApi.publish({ publishAll: true });
@@ -95,25 +110,68 @@ export default function PublishPopover({
         updateSetting('published_at', result.data.published_at_setting.value);
       }
 
+      let resolvedLiveUrl = liveUrl;
+
+      if (xxivSiteId) {
+        setPublishStepLabel('Deploying to Cloudflare...');
+
+        const deployResponse = await fetch('/ycode/api/xxiv/publish', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ xxivSiteId }),
+        });
+
+        const deployJson = await deployResponse.json().catch(() => null);
+        if (!deployResponse.ok) {
+          throw new Error(deployJson?.error || 'Cloudflare deploy failed');
+        }
+
+        resolvedLiveUrl = typeof deployJson?.url === 'string' ? deployJson.url : liveUrl;
+        setLiveUrl(resolvedLiveUrl || null);
+        onXxivPublishSuccess?.(resolvedLiveUrl || '');
+      } else {
+        resolvedLiveUrl = baseUrl + publishedUrl;
+      }
+
       toast.success('Website published successfully', {
-        action: {
-          label: 'Open',
-          onClick: () => window.open(baseUrl + publishedUrl, '_blank'),
-        },
+        action: resolvedLiveUrl
+          ? {
+              label: 'Open',
+              onClick: () => window.open(resolvedLiveUrl, '_blank'),
+            }
+          : undefined,
       });
 
       setPublishSuccess(true);
       setTimeout(() => setPublishSuccess(false), 3000);
+      setPublishStepLabel(null);
 
       // Refresh counts in background (non-blocking)
       onPublishSuccess();
       loadChangesCount();
     } catch (error) {
       console.error('Failed to publish all:', error);
+      setDeployError(error instanceof Error ? error.message : 'Publish failed');
+      setPublishStepLabel(null);
+      toast.error(error instanceof Error ? error.message : 'Publish failed');
     } finally {
       setIsPublishing(false);
     }
-  }, [baseUrl, publishedUrl, onPublishSuccess, setIsPublishing, updateSetting]);
+  }, [baseUrl, liveUrl, onPublishSuccess, onXxivPublishSuccess, publishedUrl, setIsPublishing, updateSetting, xxivSiteId]);
+
+  const handleCopyUrl = useCallback(async () => {
+    const urlToCopy = liveUrl || (baseUrl + publishedUrl);
+    if (!urlToCopy) return;
+
+    try {
+      await navigator.clipboard.writeText(urlToCopy);
+      toast.success('URL copied');
+    } catch {
+      toast.error('Failed to copy URL');
+    }
+  }, [baseUrl, liveUrl, publishedUrl]);
 
   const handleRevertConfirm = useCallback(async () => {
     try {
@@ -169,13 +227,53 @@ export default function PublishPopover({
           disabled={isPublishing || publishSuccess}
         >
           {isPublishing ? (
-            <Spinner />
+            <><Spinner /> {publishStepLabel || 'Publishing...'}</>
           ) : publishSuccess ? (
-            <Icon name="check" />
+            <><Icon name="check" /> Live</>
           ) : (
             publishedAt ? 'Update' : 'Publish'
           )}
         </Button>
+
+        {publishStepLabel && isPublishing && (
+          <div className="mt-2 text-xs text-muted-foreground">{publishStepLabel}</div>
+        )}
+
+        {publishSuccess && (liveUrl || xxivLiveUrl) && (
+          <div className="mt-3 rounded-md border border-emerald-500/25 bg-emerald-500/10 p-3">
+            <div className="text-sm font-medium text-emerald-400">Site is live!</div>
+            <a
+              className="mt-1 block break-all text-xs text-emerald-300 underline underline-offset-2"
+              href={liveUrl || xxivLiveUrl || undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {(liveUrl || xxivLiveUrl || '').replace(/^https?:\/\//, '')}
+            </a>
+            <div className="mt-3 flex gap-2">
+              <Button size="xs" variant="secondary" onClick={handleCopyUrl}>Copy URL</Button>
+              <Button
+                size="xs"
+                onClick={() => {
+                  const target = liveUrl || xxivLiveUrl;
+                  if (target) window.open(target, '_blank');
+                }}
+              >
+                Visit Site
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {deployError && (
+          <div className="mt-3 rounded-md border border-red-500/25 bg-red-500/10 p-3">
+            <div className="text-sm font-medium text-red-300">Publish failed</div>
+            <div className="mt-1 text-xs text-red-200">{deployError}</div>
+            <Button size="xs" variant="secondary" className="mt-3" onClick={handlePublishAll}>
+              Try Again
+            </Button>
+          </div>
+        )}
 
         <hr className="my-3" />
 

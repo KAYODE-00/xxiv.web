@@ -12,6 +12,12 @@ type SiteRow = {
   user_id: string;
   plan: string;
   is_published: boolean | null;
+  live_url?: string | null;
+  cf_project_name?: string | null;
+  custom_domain?: string | null;
+  custom_domain_verified?: boolean | null;
+  publish_status?: 'unpublished' | 'deploying' | 'live' | 'failed' | string | null;
+  last_published_at?: string | null;
   thumbnail_url: string | null;
   page_folder_id: string | null;
   home_page_id: string | null;
@@ -42,7 +48,7 @@ export default function DashboardClient({
 
   const stats = useMemo(() => {
     const total = sites.length;
-    const published = sites.filter((s) => !!s.is_published).length;
+    const published = sites.filter((s) => !!s.live_url || s.publish_status === 'live').length;
     const drafts = total - published;
     return { total, published, drafts };
   }, [sites]);
@@ -212,7 +218,24 @@ export default function DashboardClient({
         {sites.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16 }}>
             {sites.map((site) => {
-              const isLive = !!site.is_published;
+              const isLive = !!site.live_url || site.publish_status === 'live';
+              const liveUrl = site.custom_domain && site.custom_domain_verified
+                ? `https://${site.custom_domain}`
+                : site.live_url || (site.cf_project_name ? `https://${site.cf_project_name}.pages.dev` : null);
+              const statusLabel = isLive
+                ? 'Live'
+                : site.publish_status === 'deploying'
+                  ? 'Deploying...'
+                  : site.publish_status === 'failed'
+                    ? 'Failed'
+                    : 'Not published';
+              const statusColor = isLive
+                ? '#22c55e'
+                : site.publish_status === 'failed'
+                  ? '#ef4444'
+                  : site.publish_status === 'deploying'
+                    ? '#f59e0b'
+                    : '#666';
               return (
                 <div
                   key={site.id}
@@ -260,6 +283,16 @@ export default function DashboardClient({
                         <div style={{ color: '#666', fontSize: 12, marginTop: 4 }}>
                           {formatCreatedDate(site.created_at)}
                         </div>
+                        {liveUrl && (
+                          <a
+                            href={liveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#93c5fd', fontSize: 12, marginTop: 6, display: 'inline-block' }}
+                          >
+                            {liveUrl.replace(/^https?:\/\//, '')}
+                          </a>
+                        )}
                       </div>
 
                       <div
@@ -267,7 +300,7 @@ export default function DashboardClient({
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: 8,
-                          color: isLive ? '#86efac' : '#a3a3a3',
+                          color: isLive ? '#86efac' : statusColor === '#ef4444' ? '#fca5a5' : '#a3a3a3',
                           fontSize: 12,
                           padding: '6px 10px',
                           border: '1px solid #1a1a1a',
@@ -281,11 +314,11 @@ export default function DashboardClient({
                             width: 6,
                             height: 6,
                             borderRadius: 999,
-                            background: isLive ? '#22c55e' : '#666',
+                            background: statusColor,
                             display: 'inline-block',
                           }}
                         />
-                        {isLive ? 'Live' : 'Draft'}
+                        {statusLabel}
                       </div>
                     </div>
 
@@ -357,19 +390,22 @@ export default function DashboardClient({
                               Open Editor
                             </button>
                             <button
-                              disabled
+                              onClick={() => {
+                                setMenuOpenFor(null);
+                                window.location.href = `/sites/${site.id}/settings`;
+                              }}
                               style={{
                                 width: '100%',
                                 textAlign: 'left',
                                 padding: '10px 12px',
                                 background: 'transparent',
                                 border: 'none',
-                                color: '#666',
-                                cursor: 'not-allowed',
+                                color: '#fff',
+                                cursor: 'pointer',
                                 fontSize: 13,
                               }}
                             >
-                              Site Settings (coming soon)
+                              Site Settings
                             </button>
                             <div style={{ height: 1, background: '#1a1a1a' }} />
                             <button
