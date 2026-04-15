@@ -2739,6 +2739,60 @@ export async function renderCollectionItemsToHtml(
 }
 
 /**
+ * Render a page's layers to an HTML string (server-side).
+ * Designed for the XXIV public site API.
+ */
+export async function renderPageLayersToHtml(options: {
+  layers: Layer[];
+  isPublished: boolean;
+  pages?: Page[];
+  folders?: PageFolder[];
+  components?: Component[];
+  locale?: Locale | null;
+  translations?: Record<string, Translation>;
+  collectionItemSlugs?: Record<string, string>;
+}): Promise<string> {
+  const {
+    layers,
+    isPublished,
+    pages,
+    folders,
+    components,
+    locale,
+    translations,
+    collectionItemSlugs,
+  } = options;
+
+  await ensureMapTokens();
+
+  const resolved = await resolveAllAssets(layers, isPublished, components);
+  const resolvedLayers = resolved.layers;
+  const assetMap = resolved.assetMap;
+
+  const anchorMap = buildAnchorMap(resolvedLayers);
+
+  return resolvedLayers
+    .map((layer) =>
+      layerToHtml(
+        layer,
+        undefined,
+        pages,
+        folders,
+        collectionItemSlugs,
+        locale,
+        translations,
+        anchorMap,
+        undefined,
+        undefined,
+        assetMap,
+        undefined,
+        components
+      )
+    )
+    .join('');
+}
+
+/**
  * Inject collection data into a layer for HTML rendering
  * Similar to injectCollectionData but simplified for HTML output
  */

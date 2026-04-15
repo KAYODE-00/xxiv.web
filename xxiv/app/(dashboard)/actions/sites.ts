@@ -10,6 +10,7 @@ import {
 } from '@/lib/xxiv/cloudflare-pages';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { addCustomDomain, removeCustomDomain, getProjectDomains } from '@/lib/xxiv/vercel-deploy';
 
 export async function getUserSites() {
   const user = await requireAuthUser();
@@ -23,6 +24,21 @@ export async function getUserSites() {
 
   if (error) throw error;
   return data || [];
+}
+
+export async function getSiteById(siteId: string) {
+  const user = await requireAuthUser();
+  const supabase = await createDashboardClient();
+
+  const { data, error } = await supabase
+    .from('xxiv_sites')
+    .select('*')
+    .eq('id', siteId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function createSite(formData: FormData) {
@@ -308,4 +324,105 @@ export async function openSiteEditor(siteId: string) {
   }
 
   redirect('/ycode/pages/' + site.home_page_id + '?xxiv_site_id=' + siteId);
+}
+
+export async function connectCustomDomainToSite(siteId: string, domain: string) {
+  const user = await requireAuthUser();
+  const supabase = await createDashboardClient();
+
+  const { data: site, error } = await supabase
+    .from('xxiv_sites')
+    .select('*')
+    .eq('id', siteId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (error || !site) {
+    throw new Error('Site not found');
+  }
+
+  if (!site.vercel_project_id) {
+    throw new Error('Publish the site first to create the Vercel project');
+  }
+
+  const result = await addCustomDomain(site.vercel_project_id, domain);
+
+  const { error: updateError } = await supabase
+    .from('xxiv_sites')
+    .update({
+      custom_domain: domain,
+      custom_domain_verified: result.configured,
+    })
+    .eq('id', site.id);
+
+  if (updateError) throw updateError;
+
+  return result;
+}
+
+export async function checkCustomDomainStatus(siteId: string) {
+  const user = await requireAuthUser();
+  const supabase = await createDashboardClient();
+
+  const { data: site, error } = await supabase
+    .from('xxiv_sites')
+    .select('*')
+    .eq('id', siteId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (error || !site) {
+    throw new Error('Site not found');
+  }
+
+  if (!site.vercel_project_id || !site.custom_domain) {
+    throw new Error('No custom domain configured');
+  }
+
+  const domains = await getProjectDomains(site.vercel_project_id);
+  const current = domains.find((d) => d.name === site.custom_domain);
+  const verified = !!current?.verified;
+
+  const { error: updateError } = await supabase
+    .from('xxiv_sites')
+    .update({
+      custom_domain_verified: verified,
+    })
+    .eq('id', site.id);
+
+  if (updateError) throw updateError;
+
+  return { verified };
+}
+
+export async function removeCustomDomainFromSite(siteId: string) {
+  const user = await requireAuthUser();
+  const supabase = await createDashboardClient();
+
+  const { data: site, error } = await supabase
+    .from('xxiv_sites')
+    .select('*')
+    .eq('id', siteId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (error || !site) {
+    throw new Error('Site not found');
+  }
+
+  if (!site.vercel_project_id || !site.custom_domain) {
+    return;
+  }
+
+  await removeCustomDomain(site.vercel_project_id, site.custom_domain);
+
+  const { error: updateError } = await supabase
+    .from('xxiv_sites')
+    .update({
+      custom_domain: null,
+      custom_domain_verified: false,
+    })
+    .eq('id', site.id);
+
+  if (updateError) throw updateError;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -65,6 +66,17 @@ export default function PublishPopover({
   const [liveUrl, setLiveUrl] = useState<string | null>(xxivLiveUrl);
   const [isReverting, setIsReverting] = useState(false);
   const [isRevertDialogOpen, setIsRevertDialogOpen] = useState(false);
+  const [deployMessage, setDeployMessage] = useState<string | null>(null);
+  const [deployStatus, setDeployStatus] = useState<'idle' | 'deploying' | 'success' | 'error'>('idle');
+  const [deployError, setDeployError] = useState<string | null>(null);
+  const [deployResult, setDeployResult] = useState<{
+    liveUrl: string;
+    customDomain: string | null;
+    vercelUrl: string;
+  } | null>(null);
+
+  const searchParams = useSearchParams();
+  const xxivSiteId = searchParams.get('xxiv_site_id');
 
   const { getSettingByKey, updateSetting } = useSettingsStore();
   const publishedAt = getSettingByKey('published_at');
@@ -98,6 +110,10 @@ export default function PublishPopover({
       setDeployError(null);
       setPublishStepLabel('Publishing content...');
       setIsPublishing(true);
+      setDeployMessage('Publishing content...');
+      setDeployStatus('idle');
+      setDeployError(null);
+      setDeployResult(null);
 
       const result = await publishApi.publish({ publishAll: true });
 
@@ -151,8 +167,17 @@ export default function PublishPopover({
       // Refresh counts in background (non-blocking)
       onPublishSuccess();
       loadChangesCount();
+
+      if (xxivSiteId) {
+        setDeployStatus('deploying');
+        setDeployMessage('Deploying to Vercel... (this takes ~60 seconds)');
+        await handleXxivDeploy(xxivSiteId);
+      } else {
+        setDeployMessage(null);
+      }
     } catch (error) {
       console.error('Failed to publish all:', error);
+<<<<<<< HEAD
       setDeployError(error instanceof Error ? error.message : 'Publish failed');
       setPublishStepLabel(null);
       toast.error(error instanceof Error ? error.message : 'Publish failed');
@@ -172,6 +197,80 @@ export default function PublishPopover({
       toast.error('Failed to copy URL');
     }
   }, [baseUrl, liveUrl, publishedUrl]);
+=======
+      setDeployStatus('error');
+      setDeployError(error instanceof Error ? error.message : 'Publish failed');
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [baseUrl, publishedUrl, onPublishSuccess, setIsPublishing, updateSetting, xxivSiteId]);
+
+  const handleXxivDeploy = useCallback(async (siteId: string) => {
+    try {
+      const response = await fetch('/ycode/api/xxiv/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ xxiv_site_id: siteId }),
+      });
+
+      if (!response.body) {
+        throw new Error('Deployment stream not available');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+
+          let event: any = null;
+          try {
+            event = JSON.parse(payload);
+          } catch {
+            continue;
+          }
+          if (!event) continue;
+          if (event.type === 'progress') {
+            setDeployMessage(event.message);
+          }
+          if (event.type === 'status') {
+            if (event.status === 'READY') {
+              setDeployMessage('Deployment complete');
+            }
+          }
+          if (event.type === 'complete') {
+            setDeployResult({
+              liveUrl: event.liveUrl,
+              customDomain: event.customDomain,
+              vercelUrl: event.vercelUrl,
+            });
+            setDeployStatus('success');
+            setDeployMessage('Site is live!');
+          }
+          if (event.type === 'error') {
+            setDeployStatus('error');
+            setDeployError(event.message || 'Deployment failed');
+          }
+        }
+      }
+    } catch (error) {
+      setDeployStatus('error');
+      setDeployError(error instanceof Error ? error.message : 'Deployment failed');
+    }
+  }, []);
+>>>>>>> 5472cf66654042f129fdd1d9b7bf366665fc90b0
 
   const handleRevertConfirm = useCallback(async () => {
     try {
@@ -235,6 +334,7 @@ export default function PublishPopover({
           )}
         </Button>
 
+<<<<<<< HEAD
         {publishStepLabel && isPublishing && (
           <div className="mt-2 text-xs text-muted-foreground">{publishStepLabel}</div>
         )}
@@ -273,6 +373,62 @@ export default function PublishPopover({
               Try Again
             </Button>
           </div>
+=======
+        {(deployMessage || deployError || deployResult) && (
+          <>
+            <hr className="my-3" />
+            <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+              {deployMessage && (
+                <div className="flex items-center gap-2">
+                  {deployStatus === 'success' ? (
+                    <Icon name="check" className="size-3 text-green-500" />
+                  ) : deployStatus === 'error' ? (
+                    <Icon name="x" className="size-3 text-red-500" />
+                  ) : (
+                    <Spinner className="size-3" />
+                  )}
+                  <span>{deployMessage}</span>
+                </div>
+              )}
+
+              {deployError && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-red-500">{deployError}</span>
+                  <Button
+                    size="xs"
+                    variant="secondary"
+                    onClick={handlePublishAll}
+                    disabled={isPublishing}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              )}
+
+              {deployResult && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-foreground">Site is live!</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate">{deployResult.customDomain || deployResult.vercelUrl}</span>
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      onClick={() => navigator.clipboard.writeText(deployResult.customDomain || deployResult.vercelUrl)}
+                    >
+                      Copy URL
+                    </Button>
+                  </div>
+                  <Button
+                    size="xs"
+                    onClick={() => window.open(deployResult.customDomain || deployResult.vercelUrl, '_blank')}
+                  >
+                    View Site
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+>>>>>>> 5472cf66654042f129fdd1d9b7bf366665fc90b0
         )}
 
         <hr className="my-3" />
