@@ -28,6 +28,7 @@ import { getAllPageFolders } from '@/lib/repositories/pageFolderRepository';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { generateCssFromLayers } from '@/lib/server/cssGenerator';
 import { resolveComponents } from '@/lib/resolve-components';
+import { stripXxivIndexSlug } from '@/lib/xxiv/index-slug';
 
 export interface GeneratedSiteFiles {
   'index.html': string;
@@ -71,6 +72,7 @@ export async function generateStaticSite(siteId: string): Promise<GeneratedSiteF
   }
   const allFolders = allFoldersRaw.filter((folder) => folderIds.has(folder.id));
 
+  const publicPages = sitePages.map((page) => normalizePageForExport(page, siteId));
   const dynamicEntries = await getDynamicPageEntries(sitePages);
   const renderEntries: RenderablePageEntry[] = [
     ...sitePages.filter((page) => !page.is_dynamic).map((page) => ({ page, kind: 'static' as const })),
@@ -97,13 +99,14 @@ export async function generateStaticSite(siteId: string): Promise<GeneratedSiteF
       resolvedLayers = resolvedAssets.layers;
       allResolvedLayers.push(...resolvedLayers);
 
+      const publicPage = normalizePageForExport(entry.page, siteId);
       const collectionItemSlugs = await buildCollectionItemSlugsMap(sitePages, entry, components, resolvedLayers);
       const bodyHtml = resolvedLayers
         .map((layer) =>
           layerToHtml(
             layer,
             entry.kind === 'dynamic' ? entry.item.id : undefined,
-            sitePages,
+            publicPages,
             allFolders,
             collectionItemSlugs,
             null,
@@ -125,6 +128,12 @@ export async function generateStaticSite(siteId: string): Promise<GeneratedSiteF
       const customHeadCode = entry.page.settings?.custom_code?.head || '';
       const customBodyCode = entry.page.settings?.custom_code?.body || '';
       const routePath = getOutputRoutePath(
+        publicPage,
+        allFolders,
+        entry.kind === 'dynamic' ? entry.item : null,
+        entry.kind === 'dynamic' ? entry.fields : undefined,
+      );
+      const rawRoutePath = getOutputRoutePath(
         entry.page,
         allFolders,
         entry.kind === 'dynamic' ? entry.item : null,
@@ -133,6 +142,7 @@ export async function generateStaticSite(siteId: string): Promise<GeneratedSiteF
 
       return {
         routePath,
+        rawRoutePath,
         html: buildHtmlDocument({
           title,
           description,
@@ -161,6 +171,10 @@ export async function generateStaticSite(siteId: string): Promise<GeneratedSiteF
     if (!output) continue;
     const filePath = output.routePath === '/' ? 'index.html' : `${trimSlashes(output.routePath)}/index.html`;
     files[filePath] = output.html;
+    if (output.rawRoutePath && output.rawRoutePath !== output.routePath) {
+      const rawFilePath = output.rawRoutePath === '/' ? 'index.html' : `${trimSlashes(output.rawRoutePath)}/index.html`;
+      files[rawFilePath] = output.html;
+    }
     if (filePath === 'index.html') {
       files['index.html'] = output.html;
     }
@@ -228,6 +242,21 @@ async function getPublishedSitePages(siteId: string, preloadedPages: Page[]): Pr
   }
 
   return (legacyPages || []).filter((page) => page.error_page === null);
+}
+
+function normalizePageForExport(page: Page, siteId: string): Page {
+  return {
+    ...page,
+    slug: normalizeExportSlug(page.slug, siteId),
+  };
+}
+
+function normalizeExportSlug(slug: string, siteId: string): string {
+  const withoutIndexSlug = stripXxivIndexSlug(slug, siteId);
+  const suffix = `-${siteId.slice(0, 8)}`;
+  return withoutIndexSlug.endsWith(suffix)
+    ? withoutIndexSlug.slice(0, -suffix.length)
+    : withoutIndexSlug;
 }
 
 async function getDynamicPageEntries(sitePages: Page[]): Promise<DynamicPageEntry[]> {
