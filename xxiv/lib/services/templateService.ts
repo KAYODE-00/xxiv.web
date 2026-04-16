@@ -3,6 +3,18 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { migrations } from '../migrations-loader';
 import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
+import {
+  getTemplates as getXxivTemplates,
+  getTemplateById as getXxivTemplateById,
+  getTemplateBySlug as getXxivTemplateBySlug,
+  getTemplateLayers,
+  getTemplatePages,
+  type TemplateFilters,
+  type XxivTemplateRecord,
+} from '@/lib/repositories/templateRepository';
+import { buildXxivIndexSlug } from '@/lib/xxiv/index-slug';
+import { createXxivSiteRecord, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
+import type { Layer, PageSettings } from '@/types';
 
 /**
  * Tables to truncate when applying a template.
@@ -54,6 +66,199 @@ export interface ApplyTemplateResult {
   success: boolean;
   templateName?: string;
   error?: string;
+}
+
+export interface XxivTemplate extends XxivTemplateRecord {}
+
+export interface CloneTemplateResult {
+  template: XxivTemplate;
+  siteId: string;
+  pageId: string;
+  redirectUrl: string;
+}
+
+function namespaceTemplatePageSlug(slug: string, siteId: string, isIndex: boolean): string {
+  if (isIndex) {
+    return buildXxivIndexSlug(siteId);
+  }
+
+  const trimmed = (slug || '').trim();
+  const base = trimmed || 'page';
+  const suffix = `-${siteId.slice(0, 8)}`;
+  return base.endsWith(suffix) ? base : `${base}${suffix}`;
+}
+
+function tagPageSettingsForSite(settings: PageSettings | null | undefined, siteId: string): PageSettings {
+  return {
+    ...(settings || {}),
+    xxiv: {
+      ...((settings as PageSettings & { xxiv?: Record<string, unknown> } | null | undefined)?.xxiv || {}),
+      site_id: siteId,
+    },
+  } as PageSettings;
+}
+
+function remapTemplateLinks(value: unknown, pageIdMap: Map<string, string>): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => remapTemplateLinks(item, pageIdMap));
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  const next: Record<string, unknown> = {};
+
+  for (const [key, child] of Object.entries(record)) {
+    next[key] = remapTemplateLinks(child, pageIdMap);
+  }
+
+  if (record.type === 'page' && record.page && typeof record.page === 'object') {
+    const page = { ...(next.page as Record<string, unknown>) };
+    const mappedPageId =
+      typeof page.id === 'string'
+        ? pageIdMap.get(page.id) || page.id
+        : undefined;
+
+    if (mappedPageId) {
+      page.id = mappedPageId;
+      next.page = page;
+    }
+  }
+
+  return next;
+}
+
+export async function getTemplates(filters: TemplateFilters = {}): Promise<XxivTemplate[]> {
+  const templates = await getXxivTemplates(filters);
+
+  if (!filters.query?.trim()) {
+    return templates;
+  }
+
+  const query = filters.query.trim().toLowerCase();
+  return templates.filter((template) => {
+    const haystack = [
+      template.name,
+      template.description,
+      template.category,
+      ...(template.tags || []),
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    return haystack.includes(query);
+  });
+}
+
+export async function getFeaturedTemplates(): Promise<XxivTemplate[]> {
+  return getXxivTemplates({ featuredOnly: true, publishedOnly: true, limit: 6 });
+}
+
+export async function getTemplateBySlug(slug: string): Promise<XxivTemplate | null> {
+  return getXxivTemplateBySlug(slug);
+}
+
+export async function getTemplateById(id: string): Promise<XxivTemplate | null> {
+  return getXxivTemplateById(id);
+}
+
+export async function cloneTemplateToUserSite(templateId: string, userId: string): Promise<CloneTemplateResult> {
+  const admin = await getSupabaseAdmin();
+
+  if (!admin) {
+    throw new Error('Supabase not configured');
+  }
+
+  const template = await getTemplateById(templateId);
+  if (!template) {
+    throw new Error('Template not found');
+  }
+
+  const templatePages = await getTemplatePages(template.id);
+  if (templatePages.length === 0) {
+    throw new Error('Template has no pages');
+  }
+
+  const templateLayers = await getTemplateLayers(templatePages.map((page) => page.id));
+  const layersByTemplatePageId = new Map(
+    templateLayers.map((entry) => [entry.template_page_id, entry])
+  );
+
+  const site = await createXxivSiteRecord(userId, template.name);
+  const pageIdMap = new Map<string, string>();
+  const createdPages: Array<{ id: string; is_index: boolean; page_order: number }> = [];
+
+  for (const templatePage of templatePages) {
+    const slug = namespaceTemplatePageSlug(templatePage.slug, site.id, templatePage.is_index);
+    const { data: createdPage, error: pageError } = await admin
+      .from('pages')
+      .insert({
+        name: templatePage.name,
+        slug,
+        page_folder_id: null,
+        is_index: templatePage.is_index,
+        is_dynamic: false,
+        depth: 0,
+        order: templatePage.page_order,
+        is_published: false,
+        xxiv_site_id: site.id,
+        settings: tagPageSettingsForSite(templatePage.settings, site.id),
+      })
+      .select('id, is_index, order')
+      .single();
+
+    if (pageError || !createdPage) {
+      throw new Error(pageError?.message || 'Failed to create template page');
+    }
+
+    pageIdMap.set(templatePage.id, createdPage.id);
+    createdPages.push({
+      id: createdPage.id,
+      is_index: createdPage.is_index,
+      page_order: createdPage.order,
+    });
+  }
+
+  for (const templatePage of templatePages) {
+    const newPageId = pageIdMap.get(templatePage.id);
+    if (!newPageId) {
+      continue;
+    }
+
+    const templateLayerEntry = layersByTemplatePageId.get(templatePage.id);
+    const clonedLayers = remapTemplateLinks(templateLayerEntry?.layers || [], pageIdMap) as Layer[];
+    const { error: layersError } = await admin
+      .from('page_layers')
+      .insert({
+        page_id: newPageId,
+        layers: clonedLayers,
+        generated_css: templateLayerEntry?.generated_css || null,
+        is_published: false,
+      });
+
+    if (layersError) {
+      throw new Error(layersError.message);
+    }
+  }
+
+  const homePage =
+    createdPages.find((page) => page.is_index) ||
+    createdPages.sort((a, b) => a.page_order - b.page_order)[0];
+
+  if (!homePage) {
+    throw new Error('Failed to resolve homepage');
+  }
+
+  await setXxivSiteHomePage(site.id, homePage.id);
+
+  return {
+    template,
+    siteId: site.id,
+    pageId: homePage.id,
+    redirectUrl: `/ycode/pages/${homePage.id}?xxiv_site_id=${site.id}&template_loaded=1`,
+  };
 }
 
 /**

@@ -2,6 +2,7 @@
 
 import { requireAuthUser, createDashboardClient } from '@/lib/xxiv/server-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { createXxivSiteRecord, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
 import {
   addCFCustomDomain,
   deleteCFProject,
@@ -42,7 +43,6 @@ export async function getSiteById(siteId: string) {
 
 export async function createSite(formData: FormData) {
   const user = await requireAuthUser();
-  const supabase = await createDashboardClient();
   const admin = await getSupabaseAdmin();
 
   if (!admin) {
@@ -54,31 +54,7 @@ export async function createSite(formData: FormData) {
     throw new Error('Site name is required');
   }
 
-  // Generate unique slug
-  const baseSlug = name
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .slice(0, 40);
-  const slug = `${baseSlug}-${Date.now().toString(36)}`;
-
-  // Create XXIV site record first (so we can tag pages with xxiv_site_id)
-  const { data: site, error: siteError } = await supabase
-    .from('xxiv_sites')
-    .insert({
-      name,
-      slug,
-      user_id: user.id,
-      plan: 'free', // dev default
-      page_folder_id: null,
-      home_page_id: null,
-      is_published: false,
-      publish_status: 'unpublished',
-    })
-    .select()
-    .single();
-
-  if (siteError) throw siteError;
+  const site = await createXxivSiteRecord(user.id, name);
 
   // Create home page in Ycode (no folder)
   const { data: page, error: pageError } = await admin
@@ -111,16 +87,7 @@ export async function createSite(formData: FormData) {
     is_published: false,
   });
 
-  // Update XXIV site with home page
-  const { error: updateSiteError } = await supabase
-    .from('xxiv_sites')
-    .update({
-      home_page_id: page.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', site.id);
-
-  if (updateSiteError) throw updateSiteError;
+  await setXxivSiteHomePage(site.id, page.id);
 
   // Keep dashboard list fresh if user navigates back
   revalidatePath('/dashboard');

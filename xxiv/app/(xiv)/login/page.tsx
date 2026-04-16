@@ -248,6 +248,7 @@ function EyeIcon({ open }: { open: boolean }) {
 
 export default function LoginPage() {
   const router = useRouter();
+  const [nextPath, setNextPath] = useState('/dashboard');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -262,6 +263,11 @@ export default function LoginPage() {
     const urlError = new URLSearchParams(window.location.search).get('error');
     if (urlError) {
       setError(decodeURIComponent(urlError));
+    }
+
+    const next = new URLSearchParams(window.location.search).get('next');
+    if (next && next.startsWith('/')) {
+      setNextPath(next);
     }
   }, []);
 
@@ -290,7 +296,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push('/dashboard');
+      router.push(nextPath);
       router.refresh();
     } catch {
       setError('An unexpected error occurred. Please try again.');
@@ -313,7 +319,7 @@ export default function LoginPage() {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${origin}/auth/callback`,
+          redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
         },
       });
 
@@ -451,7 +457,7 @@ export default function LoginPage() {
           {/* Footer */}
           <p style={styles.footer}>
             Don&apos;t have an account?
-            <Link href="/signup" style={styles.footerLink}>Sign up</Link>
+            <Link href={nextPath !== '/dashboard' ? `/signup?next=${encodeURIComponent(nextPath)}` : '/signup'} style={styles.footerLink}>Sign up</Link>
           </p>
         </div>
       </main>

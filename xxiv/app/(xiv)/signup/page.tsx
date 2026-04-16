@@ -278,6 +278,7 @@ function EyeIcon({ open }: { open: boolean }) {
 
 export default function SignupPage() {
   const router = useRouter();
+  const [nextPath, setNextPath] = useState('/dashboard');
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -295,6 +296,11 @@ export default function SignupPage() {
   useEffect(() => {
     const urlError = new URLSearchParams(window.location.search).get('error');
     if (urlError) setError(decodeURIComponent(urlError));
+
+    const next = new URLSearchParams(window.location.search).get('next');
+    if (next && next.startsWith('/')) {
+      setNextPath(next);
+    }
   }, []);
 
   useEffect(() => {
@@ -335,7 +341,7 @@ export default function SignupPage() {
         password,
         options: {
           data: { full_name: fullName.trim() },
-          emailRedirectTo: `${origin}/auth/callback`,
+          emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
         },
       });
 
@@ -363,7 +369,7 @@ export default function SignupPage() {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${origin}/auth/callback`,
+          redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
         },
       });
 
@@ -564,7 +570,7 @@ export default function SignupPage() {
           {/* Footer */}
           <p style={styles.footer}>
             Already have an account?
-            <Link href="/login" style={styles.footerLink}>Sign in</Link>
+            <Link href={nextPath !== '/dashboard' ? `/login?next=${encodeURIComponent(nextPath)}` : '/login'} style={styles.footerLink}>Sign in</Link>
           </p>
         </div>
       </main>

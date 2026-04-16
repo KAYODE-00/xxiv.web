@@ -256,6 +256,19 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlState, setPreviewMode]); // Remove isPreviewMode from deps to prevent loop
 
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('template_loaded') !== '1') {
+      return;
+    }
+
+    toast.success('Template loaded successfully');
+    searchParams.delete('template_loaded');
+    const nextQuery = searchParams.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}`;
+    window.history.replaceState({}, '', nextUrl);
+  }, []);
+
   // Track edit mode transitions to prevent effects from running during navigation
   const currentIsEditing = urlState.isEditing;
   const justExitedEditMode = previousIsEditingRef.current === true && currentIsEditing === false;
