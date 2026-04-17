@@ -1555,6 +1555,11 @@ export function getLayerHtmlTag(layer: Layer): string {
     return 'h2';
   }
 
+  // Text layers default to p when no tag is set, preventing invalid <text> HTML elements
+  if (layer.name === 'text') {
+    return 'p';
+  }
+
   // Rich text renders as div (contains block-level content)
   if (layer.name === 'richText') {
     return 'div';
