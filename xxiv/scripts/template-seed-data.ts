@@ -212,4 +212,175 @@ export const templateSeedData: SeedTemplate[] = [
       },
     ],
   },
+  {
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    name: 'Horizon Ecommerce',
+    slug: 'horizon-ecommerce',
+    description: 'A modern, high-converting storefront layout optimized for fast physical or digital product sales.',
+    category: 'Store',
+    thumbnail_url: null,
+    preview_url: null,
+    tags: ['Ecommerce', 'Store', 'Retail'],
+    is_featured: true,
+    sort_order: 2,
+    pages: [
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        name: 'Home',
+        slug: '',
+        is_index: true,
+        page_order: 0,
+        settings: { seo: { title: 'Horizon Ecommerce', description: 'Your new storefront.', noindex: false, image: null } },
+        layers: [
+          {
+            id: 'body',
+            name: 'body',
+            classes: 'bg-white text-black min-h-screen',
+            children: [
+              {
+                id: 'nav',
+                name: 'nav',
+                classes: 'w-full py-6 px-10 border-b border-gray-100 flex justify-between items-center',
+                children: [
+                  {
+                    id: 'logo',
+                    name: 'text',
+                    classes: 'font-bold text-xl tracking-tight',
+                    variables: { text: { type: 'dynamic_text', data: { content: 'HORIZON' } } },
+                  },
+                  {
+                    id: 'cart',
+                    name: 'button',
+                    classes: 'text-sm font-medium hover:opacity-70 transition-opacity',
+                    variables: { text: { type: 'dynamic_text', data: { content: 'Cart (0)' } } },
+                  }
+                ],
+              },
+              {
+                id: 'hero',
+                name: 'section',
+                classes: 'px-10 py-24 max-w-5xl mx-auto text-center',
+                children: [
+                  {
+                    id: 'hero-title',
+                    name: 'text',
+                    classes: 'text-5xl md:text-7xl font-bold tracking-tight leading-tight',
+                    variables: { text: { type: 'dynamic_text', data: { content: 'The next generation of modern retail.' } } },
+                  },
+                  {
+                    id: 'hero-copy',
+                    name: 'text',
+                    classes: 'mt-6 text-gray-500 text-lg md:text-xl max-w-2xl mx-auto',
+                    variables: { text: { type: 'dynamic_text', data: { content: 'Start selling instantly with a template designed for uncompromised performance and conversion.' } } },
+                  },
+                  {
+                    id: 'shop-all',
+                    name: 'button',
+                    classes: 'mt-10 inline-block px-8 py-4 bg-black text-white rounded-full font-medium hover:bg-gray-800 transition-colors',
+                    variables: { text: { type: 'dynamic_text', data: { content: 'Shop the collection' } } },
+                  }
+                ]
+              }
+            ],
+          }
+        ],
+      }
+    ],
+  },
+  {
+    id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    name: 'Atelier Portfolio',
+    slug: 'atelier-portfolio',
+    description: 'A striking minimal layout for architects, designers, and visual artists to showcase their work.',
+    category: 'Portfolio',
+    thumbnail_url: null,
+    preview_url: null,
+    tags: ['Portfolio', 'Creative', 'Personal'],
+    is_featured: false,
+    sort_order: 3,
+    pages: [
+      {
+        id: '44444444-4444-4444-8444-444444444444',
+        name: 'Home',
+        slug: '',
+        is_index: true,
+        page_order: 0,
+        settings: { seo: { title: 'Atelier Portfolio', description: 'Showcase your work.', noindex: false, image: null } },
+        layers: [
+          {
+            id: 'body',
+            name: 'body',
+            classes: 'bg-[#fafafa] text-[#111] min-h-screen font-serif',
+            children: [
+              {
+                id: 'header',
+                name: 'header',
+                classes: 'px-12 py-12 flex justify-between items-start',
+                children: [
+                  {
+                    id: 'name-tag',
+                    name: 'text',
+                    classes: 'text-2xl italic',
+                    variables: { text: { type: 'dynamic_text', data: { content: 'Atelier' } } },
+                  },
+                  {
+                    id: 'nav-links',
+                    name: 'div',
+                    classes: 'flex flex-col gap-2 items-end text-sm uppercase tracking-widest',
+                    children: [
+                      {
+                        id: 'link-work',
+                        name: 'text',
+                        classes: 'hover:text-gray-500 cursor-pointer',
+                        variables: { text: { type: 'dynamic_text', data: { content: 'Selected Work' } } },
+                      },
+                      {
+                        id: 'link-info',
+                        name: 'text',
+                        classes: 'hover:text-gray-500 cursor-pointer',
+                        variables: { text: { type: 'dynamic_text', data: { content: 'Information' } } },
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                id: 'grid',
+                name: 'section',
+                classes: 'px-12 pb-24 grid grid-cols-1 md:grid-cols-2 gap-12 mt-12',
+                children: [
+                  {
+                    id: 'item-1',
+                    name: 'div',
+                    classes: 'aspect-[4/5] bg-gray-200 flex items-center justify-center relative overflow-hidden group',
+                    children: [
+                      {
+                        id: 'item-1-label',
+                        name: 'text',
+                        classes: 'font-sans text-xs tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity',
+                        variables: { text: { type: 'dynamic_text', data: { content: 'Project 01' } } },
+                      }
+                    ]
+                  },
+                  {
+                    id: 'item-2',
+                    name: 'div',
+                    classes: 'aspect-[3/4] bg-gray-300 flex items-center justify-center relative overflow-hidden group mt-0 md:mt-24',
+                    children: [
+                      {
+                        id: 'item-2-label',
+                        name: 'text',
+                        classes: 'font-sans text-xs tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity',
+                        variables: { text: { type: 'dynamic_text', data: { content: 'Project 02' } } },
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
 ];

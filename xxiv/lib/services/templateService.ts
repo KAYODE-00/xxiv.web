@@ -234,7 +234,6 @@ export async function cloneTemplateToUserSite(templateId: string, userId: string
       .insert({
         page_id: newPageId,
         layers: clonedLayers,
-        generated_css: templateLayerEntry?.generated_css || null,
         is_published: false,
       });
 

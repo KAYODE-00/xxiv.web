@@ -6,9 +6,10 @@
  * On Vercel, env vars are set via the dashboard — writes are not supported.
  *
  * SERVER-ONLY: This module uses Node.js fs module and should never be imported in client code.
+ *
+ * Note: `server-only` cannot be imported from a direct Node script, so this file
+ * intentionally avoids that runtime import.
  */
-
-import 'server-only';
 
 import fs from 'fs/promises';
 import path from 'path';

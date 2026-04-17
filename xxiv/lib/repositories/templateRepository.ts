@@ -109,7 +109,6 @@ export async function getTemplateBySlug(slug: string): Promise<XxivTemplateRecor
     .from('xxiv_templates')
     .select('*')
     .eq('slug', slug)
-    .eq('is_published', true)
     .single();
 
   if (error) {
@@ -128,7 +127,6 @@ export async function getTemplateById(id: string): Promise<XxivTemplateRecord | 
     .from('xxiv_templates')
     .select('*')
     .eq('id', id)
-    .eq('is_published', true)
     .single();
 
   if (error) {

@@ -1,5 +1,10 @@
-import { getKnexClient, closeKnexClient } from '../lib/knex-client';
-import { templateSeedData } from './template-seed-data';
+import { getKnexClient, closeKnexClient } from '../lib/knex-client.ts';
+import { templateSeedData } from './template-seed-data.ts';
+
+/** Convert a JS string array to a PostgreSQL text[] literal, e.g. {"a","b"} */
+function pgArray(arr: string[]): string {
+  return `{${arr.map((v) => `"${v.replace(/"/g, '\\"')}"`).join(',')}}`;
+}
 
 async function seedTemplates() {
   const knex = await getKnexClient();
@@ -14,7 +19,7 @@ async function seedTemplates() {
         category: template.category,
         thumbnail_url: template.thumbnail_url,
         preview_url: template.preview_url,
-        tags: template.tags,
+        tags: pgArray(template.tags),
         is_featured: template.is_featured,
         is_published: true,
         sort_order: template.sort_order,
@@ -27,7 +32,7 @@ async function seedTemplates() {
           category: template.category,
           thumbnail_url: template.thumbnail_url,
           preview_url: template.preview_url,
-          tags: template.tags,
+          tags: pgArray(template.tags),
           is_featured: template.is_featured,
           is_published: true,
           sort_order: template.sort_order,
@@ -52,13 +57,13 @@ async function seedTemplates() {
           slug: page.slug,
           is_index: page.is_index,
           page_order: page.page_order,
-          settings: page.settings,
+          settings: JSON.stringify(page.settings),
           updated_at: trx.fn.now(),
         });
 
         await trx('xxiv_template_layers').insert({
           template_page_id: page.id,
-          layers: page.layers,
+          layers: JSON.stringify(page.layers),
           generated_css: null,
         });
       }

@@ -111,6 +111,20 @@ export default function DashboardClient({
           XXIV
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <a
+            href="/templates"
+            style={{
+              color: '#bbb',
+              textDecoration: 'none',
+              fontSize: 13,
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid #1a1a1a',
+              transition: 'color 0.15s',
+            }}
+          >
+            Templates
+          </a>
           <div style={{ color: '#888', fontSize: 13 }}>{user.email || ''}</div>
           <button
             onClick={handleSignOut}

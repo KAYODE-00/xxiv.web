@@ -1,52 +1,37 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import {
-  Field,
-  FieldDescription,
-  FieldLegend,
-  FieldSeparator,
-} from '@/components/ui/field';
-import { TemplateGallery } from '@/components/templates';
-import { TemplateExportDialog } from '@/components/templates/TemplateExportDialog';
+import Link from 'next/link';
 
 export default function TemplatesSettingsPage() {
-  const [showExportDialog, setShowExportDialog] = useState(false);
-
-  const handleApplySuccess = () => {
-    // Page will reload after template is applied
-  };
-
   return (
     <div className="p-8">
       <div className="max-w-4xl mx-auto">
-        <header className="pt-8 pb-6 flex items-center justify-between">
+        <header className="pt-8 pb-6">
           <span className="text-base font-medium">Templates</span>
-          <Button onClick={() => setShowExportDialog(true)} variant="secondary">
-            Submit template
-          </Button>
         </header>
 
-        {/* Apply Template Section */}
-        <div className="bg-secondary/20 p-8 rounded-lg mb-8">
-          <div className="mb-6">
-            <FieldLegend>Apply Template</FieldLegend>
-            <FieldDescription>
-              Replace your current pages, collections, and components with a
-              pre-built template. Your uploaded assets and settings will be
-              preserved.
-            </FieldDescription>
+        <div className="bg-secondary/20 p-8 rounded-lg mb-8 text-center" style={{ minHeight: '300px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="text-lg font-medium mb-2">Template Gallery Moved</div>
+          <div className="text-sm text-gray-400 mb-6 max-w-sm">
+            You can now explore, preview, and build with templates directly from the main XXIV template gallery.
           </div>
-
-          <TemplateGallery onApplySuccess={handleApplySuccess} />
+          <Link
+            href="/templates"
+            className="xxiv-btn-primary"
+            style={{
+              display: 'inline-flex',
+              padding: '10px 16px',
+              fontSize: '14px',
+              textDecoration: 'none',
+              background: '#ffffff',
+              color: '#000000',
+              borderRadius: '8px',
+              fontWeight: 600,
+            }}
+          >
+            Go to Templates Gallery
+          </Link>
         </div>
-
-        {/* Export Dialog */}
-        <TemplateExportDialog
-          open={showExportDialog}
-          onOpenChange={setShowExportDialog}
-        />
       </div>
     </div>
   );

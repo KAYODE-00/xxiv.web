@@ -235,7 +235,7 @@ export default function TemplatesGalleryClient({
                     </a>
                   ) : (
                     <Link
-                      href={`/templates/${template.slug}`}
+                      href={`/templates/preview/${template.id}`}
                       style={{
                         flex: 1,
                         minWidth: 120,

@@ -35,9 +35,9 @@
     "migrate:latest": "NODE_NO_WARNINGS=1 knex migrate:latest --knexfile knexfile.ts",
     "migrate:rollback": "NODE_NO_WARNINGS=1 knex migrate:rollback --knexfile knexfile.ts",
     "migrate:status": "NODE_NO_WARNINGS=1 knex migrate:status --knexfile knexfile.ts",
-    "migrate:credentials": "npx ts-node scripts/migrate-credentials.ts",
-    "templates:seed": "npx ts-node scripts/seed-templates.ts",
-    "fonts:update": "npx ts-node scripts/fetch-google-fonts.ts",
+    "migrate:credentials": "npx ts-node --project tsconfig.json scripts/migrate-credentials.ts",
+    "templates:seed": "npx ts-node -r dotenv/config --project tsconfig.json scripts/seed-templates.ts",
+    "fonts:update": "npx ts-node --project tsconfig.json scripts/fetch-google-fonts.ts",
     "prepare": "husky"
   },
   "dependencies": {
@@ -116,6 +116,7 @@
     "@types/nodemailer": "^7.0.9",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.1.6",
     "eslint-plugin-react": "^7.37.5",

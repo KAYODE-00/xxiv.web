@@ -8,7 +8,7 @@ export default async function TemplatesPage({
 }: {
   searchParams?: Promise<{ error?: string }>;
 }) {
-  const templates = await getTemplates();
+  const templates = await getTemplates({ publishedOnly: false });
   const resolvedSearchParams = await searchParams;
   const error = resolvedSearchParams?.error ? decodeURIComponent(resolvedSearchParams.error) : null;
 
