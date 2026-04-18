@@ -5,26 +5,15 @@ import { noCache } from '@/lib/api-response';
 /**
  * POST /xxiv/api/auth/invite
  *
- * Invite a user by email using Supabase's built-in invite system
+ * Invite a user by email using Supabase's built-in invite system.
+ * This version is a clean rewrite to resolve persistent build cache issues.
  */
 export async function POST(request: NextRequest) {
   try {
-    const { email, redirectTo, xxiv_site_id } = await request.json();
+    const { email: inviteEmail, redirectTo, xxiv_site_id } = await request.json();
 
-    if (!email) {
-      return noCache(
-        { error: 'Email is required' },
-        400
-      );
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return noCache(
-        { error: 'Invalid email format' },
-        400
-      );
+    if (!inviteEmail) {
+      return noCache({ error: 'Email is required' }, 400);
     }
 
     const client = await getSupabaseAdmin();
@@ -33,27 +22,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the current user to identify the inviter
-    const { createClient: createServerClient } = await import('@/lib/supabase-server');
-    const supabaseServer = await createServerClient();
-    const { data: { user: inviter }, error: authError } = await supabaseServer.auth.getUser();
+    const { getAuthUser } = await import('@/lib/xxiv/server-client');
+    const inviter = await getAuthUser();
 
-    if (authError || !inviter) {
+    if (!inviter) {
       return noCache({ error: 'Unauthorized' }, 401);
     }
 
-
-    if (!email) {
-      return noCache({ error: 'Email is required' }, 400);
-    }
-
-    // Optional: Verify xxiv_site_id ownership/membership here if needed
+    // Record invitation in the database (PER PROJECT)
     if (xxiv_site_id) {
-      // Create or update invitation record in the database
       const { error: dbError } = await client
         .from('xxiv_site_invites')
         .upsert({
           site_id: xxiv_site_id,
-          email: email.trim(),
+          email: inviteEmail.trim(),
           inviter_id: inviter.id,
           status: 'pending',
           created_at: new Date().toISOString()
@@ -61,38 +43,33 @@ export async function POST(request: NextRequest) {
 
       if (dbError) {
         console.error('[invite] DB error:', dbError);
-        return noCache({ error: 'Failed to record invitation' }, 500);
+        return noCache({ error: 'Failed' }, 500);
       }
     }
 
     // Use Supabase's built-in invite functionality
-    const { data, error } = await client.auth.admin.inviteUserByEmail(email, {
+    const { data, error } = await client.auth.admin.inviteUserByEmail(inviteEmail, {
       redirectTo: redirectTo || undefined,
       data: {
         invited_at: new Date().toISOString(),
-        xxiv_site_id: xxiv_site_id || null, // Include in user metadata for existing user checks
+        xxiv_site_id: xxiv_site_id || null, 
       },
     });
 
-    if (error) {
-      // If user already exists, that's okay, they might still need the membership
-      if (error.status !== 422) { // 422 is usually "User already registered"
-        console.error('[invite] Error inviting user:', error);
-        return noCache({ error: error.message }, 400);
-      }
+    if (error && error.status !== 422) {
+      console.error('[invite] Supabase error:', error);
+      return noCache({ error: error.message }, 400);
     }
 
     return noCache({
       data: {
         user: data?.user || null,
-        message: `Invitation sent to ${email}`,
+        message: `Invitation sent to ${inviteEmail}`,
       },
     });
-  } catch (error) {
-    console.error('[invite] Unexpected error:', error);
-    return noCache(
-      { error: 'Failed to send invitation' },
-      500
-    );
+  } catch (err) {
+    console.error('[invite] Unexpected error:', err);
+    return noCache({ error: 'Internal Server Error' }, 500);
   }
 }
+// Clean Fresh Start: 2026-04-19 00:39
