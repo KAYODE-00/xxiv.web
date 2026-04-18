@@ -1,7 +1,7 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { STORAGE_BUCKET } from '@/lib/asset-constants';
-import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
+import { XXIV_EXTERNAL_API_URL } from '@/lib/config';
 
 // API key for uploading templates to the shared template service
 const TEMPLATE_UPLOAD_API_KEY =
@@ -506,7 +506,7 @@ export async function exportAndUploadTemplate(
     const assets = await collectTemplateAssets();
 
     // 3. Upload to template service
-    const response = await fetch(`${YCODE_EXTERNAL_API_URL}/api/templates/upload`, {
+    const response = await fetch(`${XXIV_EXTERNAL_API_URL}/api/templates/upload`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

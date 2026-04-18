@@ -41,6 +41,7 @@ export function registerPageTools(server: McpServer) {
       page_folder_id: z.string().nullable().optional().describe('Parent folder ID, or null for root'),
       is_index: z.boolean().optional().describe('Set to true to make this the homepage'),
       is_dynamic: z.boolean().optional().describe('Set to true for CMS dynamic pages'),
+      xxiv_site_id: z.string().nullable().optional().describe('Optional XXIV site ID used to scope pages to a specific site'),
     },
     async (args) => {
       const isIndex = args.is_index || false;
@@ -55,12 +56,19 @@ export function registerPageTools(server: McpServer) {
         slug,
         is_published: false,
         page_folder_id: folderId,
+        xxiv_site_id: args.xxiv_site_id ?? null,
         order: maxOrder + 1,
         depth: 0,
         is_index: isIndex,
         is_dynamic: args.is_dynamic || false,
         error_page: null,
-        settings: {},
+        settings: args.xxiv_site_id
+          ? {
+              xxiv: {
+                site_id: args.xxiv_site_id,
+              },
+            }
+          : {},
       });
 
       const initialLayers = [{

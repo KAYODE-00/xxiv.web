@@ -53,7 +53,7 @@ async function fetchCachedGlobalSettings() {
       colorVariablesCss: null,
       globalCustomCodeHead: null,
       globalCustomCodeBody: null,
-      ycodeBadge: true,
+      xxivBadge: true,
       faviconUrl: null,
       webClipUrl: null,
     };
@@ -164,7 +164,7 @@ export default async function Home() {
       gaMeasurementId={globalSettings.gaMeasurementId}
       globalCustomCodeHead={globalSettings.globalCustomCodeHead}
       globalCustomCodeBody={globalSettings.globalCustomCodeBody}
-      ycodeBadge={globalSettings.ycodeBadge}
+      xxivBadge={globalSettings.xxivBadge}
     />
   );
 }
@@ -179,8 +179,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
   if (!data) {
     return {
-      title: 'Ycode',
-      description: 'Built with Ycode',
+      title: 'Xxiv',
+      description: 'Built with Xxiv',
     };
   }
 

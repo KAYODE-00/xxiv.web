@@ -197,7 +197,7 @@ async function fetchCachedGlobalSettings() {
       colorVariablesCss: null,
       globalCustomCodeHead: null,
       globalCustomCodeBody: null,
-      ycodeBadge: true,
+      xxivBadge: true,
       faviconUrl: null,
       webClipUrl: null,
     };
@@ -354,7 +354,7 @@ export default async function Page({ params }: PageProps) {
       gaMeasurementId={globalSettings.gaMeasurementId}
       globalCustomCodeHead={globalSettings.globalCustomCodeHead}
       globalCustomCodeBody={globalSettings.globalCustomCodeBody}
-      ycodeBadge={globalSettings.ycodeBadge}
+      xxivBadge={globalSettings.xxivBadge}
     />
   );
 }

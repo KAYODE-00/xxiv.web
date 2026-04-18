@@ -1,5 +1,5 @@
 /**
- * Ycode Type Definitions
+ * Xxiv Type Definitions
  *
  * Core types for pages, layers, and editor functionality
  */
@@ -774,7 +774,7 @@ export interface Redirect {
 
 export type SmtpProvider = 'google' | 'microsoft365' | 'mailersend' | 'postmark' | 'sendgrid' | 'mailgun' | 'amazonses' | 'other';
 
-export type EmailMode = 'ycode' | 'custom';
+export type EmailMode = 'xxiv' | 'custom';
 
 export interface EmailSettings {
   enabled: boolean;

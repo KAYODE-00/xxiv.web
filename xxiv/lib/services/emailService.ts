@@ -10,7 +10,7 @@ import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 
 export interface EmailSettings {
   enabled: boolean;
-  mode?: 'ycode' | 'custom';
+  mode?: 'xxiv' | 'custom';
   provider: string;
   smtpHost: string;
   smtpPort: string;

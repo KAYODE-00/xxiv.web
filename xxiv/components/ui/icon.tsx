@@ -16,7 +16,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'ease-back-in-out' | 'ease-back-out' | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash'
     | 'paintbrush' | 'swatch' | 'cube' | 'triangle-down' | 'triangle-right' | 'plus-circle' | 'plus-circle-solid' | 'detach' | 'email' | 'phone' | 'paperclip' | 'unlink' | 'map'
     | 'paragraph' | 'droplet' | 'expand' | 'collapse' | 'filter' | 'crosshair' | 'lightbox' | 'slider' | 'slide' | 'slides' | 'slide-button-prev' | 'slide-button-next'
-    | 'slide-bullets' | 'slide-bullet' | 'slide-navigation' | 'slide-fraction' | 'loop-alternate' | 'loop-repeat' | 'listItem' | 'external-link' | 'arrow-right' | 'ycode-logo'
+    | 'slide-bullets' | 'slide-bullet' | 'slide-navigation' | 'slide-fraction' | 'loop-alternate' | 'loop-repeat' | 'listItem' | 'external-link' | 'arrow-right' | 'xxiv-logo'
     | 'settings'
   );
 }
@@ -975,7 +975,7 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
       <path d="M10.6568456,2 L10.6568456,10 L9.65684563,10 L9.65684563,3.725 L3.94822117,9.43396196 L3.21821555,8.70395634 L8.92284563,2.999 L2.65684563,3 L2.65684563,2 L10.6568456,2 Z" />
     </>
   ),
-  'ycode-logo': (
+  'xxiv-logo': (
     <>
       <path d="M6,0 L8,4 L7,4 L6,2 L5,4 L4,4 L6,0 Z" />
       <path d="M6,6 L6,10" strokeWidth="1" stroke="currentColor" fill="none" strokeLinecap="round" />

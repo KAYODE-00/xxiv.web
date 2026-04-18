@@ -2,6 +2,7 @@
 
 import { requireAuthUser, createDashboardClient } from '@/lib/xxiv/server-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { createToken } from '@/lib/repositories/mcpTokenRepository';
 import { createXxivSiteRecord, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
 import {
   addCFCustomDomain,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/xxiv/cloudflare-pages';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 
 export async function getUserSites() {
   const user = await requireAuthUser();
@@ -44,6 +46,7 @@ export async function getSiteById(siteId: string) {
 export async function createSite(formData: FormData) {
   const user = await requireAuthUser();
   const admin = await getSupabaseAdmin();
+  const requestHeaders = await headers();
 
   if (!admin) {
     throw new Error('Supabase not configured');
@@ -55,8 +58,21 @@ export async function createSite(formData: FormData) {
   }
 
   const site = await createXxivSiteRecord(user.id, name);
+  const mcpToken = await createToken(`${name.trim()} AI Builder`);
+  const protocol = requestHeaders.get('x-forwarded-proto') || 'http';
+  const host = requestHeaders.get('host') || 'localhost:3000';
+  const mcpUrl = `${protocol}://${host}/xxiv/mcp/${mcpToken.token}`;
 
-  // Create home page in Ycode (no folder)
+  await admin
+    .from('xxiv_sites')
+    .update({
+      mcp_token: mcpToken.token,
+      mcp_url: mcpUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', site.id);
+
+  // Create home page in Xxiv (no folder)
   const { data: page, error: pageError } = await admin
     .from('pages')
     .insert({
@@ -83,7 +99,14 @@ export async function createSite(formData: FormData) {
   // Create empty page layers
   await admin.from('page_layers').insert({
     page_id: page.id,
-    layers: [],
+    layers: [
+      {
+        id: 'body',
+        name: 'body',
+        classes: '',
+        children: [],
+      },
+    ],
     is_published: false,
   });
 
@@ -92,8 +115,8 @@ export async function createSite(formData: FormData) {
   // Keep dashboard list fresh if user navigates back
   revalidatePath('/dashboard');
 
-  // Go directly to Ycode editor
-  redirect('/ycode/pages/' + page.id + '?xxiv_site_id=' + site.id);
+  // Go directly to Xxiv editor
+  redirect('/xxiv/pages/' + page.id + '?xxiv_site_id=' + site.id);
 }
 
 export async function deleteSite(siteId: string) {
@@ -120,7 +143,7 @@ export async function deleteSite(siteId: string) {
     await deleteCFProject(site.cf_project_name);
   }
 
-  // Delete all Ycode pages belonging to this site (tagged in settings)
+  // Delete all Xxiv pages belonging to this site (tagged in settings)
   const { data: pages, error: pagesError } = await admin
     .from('pages')
     .select('id')
@@ -289,5 +312,5 @@ export async function openSiteEditor(siteId: string) {
     throw new Error('No page found for this site');
   }
 
-  redirect('/ycode/pages/' + site.home_page_id + '?xxiv_site_id=' + siteId);
+  redirect('/xxiv/pages/' + site.home_page_id + '?xxiv_site_id=' + siteId);
 }

@@ -1088,7 +1088,7 @@ export function tiptapContentToString(content: any): string {
     } else if (node.type === 'dynamicVariable') {
       // Convert variable node to inline variable tag
       if (node.attrs?.variable) {
-        result += `<ycode-inline-variable>${JSON.stringify(node.attrs.variable)}</ycode-inline-variable>`;
+        result += `<xxiv-inline-variable>${JSON.stringify(node.attrs.variable)}</xxiv-inline-variable>`;
       }
     } else if (node.content && Array.isArray(node.content)) {
       node.content.forEach(processNode);
@@ -1108,7 +1108,7 @@ export function tiptapContentToString(content: any): string {
  */
 export function stringToTiptapContent(text: string): any {
   const content: any[] = [];
-  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+  const regex = /<xxiv-inline-variable>([\s\S]*?)<\/xxiv-inline-variable>/g;
   let lastIndex = 0;
   let match;
 

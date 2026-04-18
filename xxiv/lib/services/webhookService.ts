@@ -125,19 +125,19 @@ async function deliverToWebhook(webhook: Webhook, event: WebhookEvent): Promise<
   // Build headers
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'User-Agent': 'Ycode-Webhook/1.0',
-    'X-Ycode-Event': event.type,
+    'User-Agent': 'Xxiv-Webhook/1.0',
+    'X-Xxiv-Event': event.type,
   };
 
   // Add delivery ID header if available
   if (deliveryId) {
-    headers['X-Ycode-Delivery'] = deliveryId;
+    headers['X-Xxiv-Delivery'] = deliveryId;
   }
 
   // Add HMAC signature if secret is configured
   if (webhook.secret) {
     const signature = generateWebhookSignature(payloadString, webhook.secret);
-    headers['X-Ycode-Signature'] = `sha256=${signature}`;
+    headers['X-Xxiv-Signature'] = `sha256=${signature}`;
   }
 
   const startTime = Date.now();

@@ -2,7 +2,7 @@ import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-clie
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { migrations } from '../migrations-loader';
-import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
+import { XXIV_EXTERNAL_API_URL } from '@/lib/config';
 import {
   getTemplates as getXxivTemplates,
   getTemplateById as getXxivTemplateById,
@@ -256,7 +256,7 @@ export async function cloneTemplateToUserSite(templateId: string, userId: string
     template,
     siteId: site.id,
     pageId: homePage.id,
-    redirectUrl: `/ycode/pages/${homePage.id}?xxiv_site_id=${site.id}&template_loaded=1`,
+    redirectUrl: `/xxiv/pages/${homePage.id}?xxiv_site_id=${site.id}&template_loaded=1`,
   };
 }
 
@@ -267,7 +267,7 @@ export async function listTemplatesWithCategories(): Promise<{
   templates: Template[];
   categories: TemplateCategory[];
 }> {
-  const response = await fetch(`${YCODE_EXTERNAL_API_URL}/api/templates`, {
+  const response = await fetch(`${XXIV_EXTERNAL_API_URL}/api/templates`, {
     cache: 'no-store',
   });
 
@@ -304,7 +304,7 @@ export async function listCategories(): Promise<TemplateCategory[]> {
  * Get template details from the template service
  */
 export async function getTemplate(id: string): Promise<TemplateDetails | null> {
-  const response = await fetch(`${YCODE_EXTERNAL_API_URL}/api/templates/${id}`, {
+  const response = await fetch(`${XXIV_EXTERNAL_API_URL}/api/templates/${id}`, {
     cache: 'no-store',
   });
 
@@ -495,7 +495,7 @@ export async function applyTemplate(
   try {
     // 1. Fetch processed SQL from template service
     const response = await fetch(
-      `${YCODE_EXTERNAL_API_URL}/api/templates/${templateId}/apply`,
+      `${XXIV_EXTERNAL_API_URL}/api/templates/${templateId}/apply`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

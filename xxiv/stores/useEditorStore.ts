@@ -285,10 +285,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
 
     // Update URL query param if we're in a route that supports layer selection
-    // Check if we're in /ycode/layers, /ycode/pages, or /ycode/components route
+    // Check if we're in /xxiv/layers, /xxiv/pages, or /xxiv/components route
     if (typeof window !== 'undefined') {
       const pathname = window.location.pathname;
-      const isLayerRoute = /^\/ycode\/(layers|pages|components)\//.test(pathname);
+      const isLayerRoute = /^\/xxiv\/(layers|pages|components)\//.test(pathname);
       
       if (isLayerRoute) {
         updateUrlQueryParam('layer', id || null);
@@ -632,7 +632,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
     if (typeof window !== 'undefined') {
       const pathname = window.location.pathname;
-      const isLayerRoute = /^\/ycode\/(layers|pages|components)\//.test(pathname);
+      const isLayerRoute = /^\/xxiv\/(layers|pages|components)\//.test(pathname);
       if (isLayerRoute) {
         updateUrlQueryParam('layer', layerId);
       }

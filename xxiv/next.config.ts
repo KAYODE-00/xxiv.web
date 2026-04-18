@@ -57,8 +57,8 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Apply to public pages ONLY (exclude /ycode/*, /_next/*, /a/*)
-        source: '/:path((?!ycode|_next|a/).*)*',
+        // Apply to public pages ONLY (exclude /xxiv/*, /_next/*, /a/*)
+        source: '/:path((?!xxiv|_next|a/).*)*',
         headers: [
           {
             key: 'Cache-Control',

@@ -4,9 +4,9 @@
  * Fetches icons from the external Remix Icons API.
  */
 
-import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
+import { XXIV_EXTERNAL_API_URL } from '@/lib/config';
 
-const ICONS_API_URL = `${YCODE_EXTERNAL_API_URL}/api/icons`;
+const ICONS_API_URL = `${XXIV_EXTERNAL_API_URL}/api/icons`;
 
 export interface RemixIcon {
   source: string;

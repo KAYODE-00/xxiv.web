@@ -1102,7 +1102,7 @@ async function injectCollectionData(
   // Handle DynamicTextVariable (legacy string format with inline variable tags)
   else if (textVariable && textVariable.type === 'dynamic_text') {
     const textContent = textVariable.data.content;
-    if (textContent.includes('<ycode-inline-variable>')) {
+    if (textContent.includes('<xxiv-inline-variable>')) {
       const mockItem: CollectionItemWithValues = {
         id: 'temp',
         collection_id: 'temp',
@@ -1237,7 +1237,7 @@ function resolveInlineVariablesWithRelationships(
     return text;
   }
 
-  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+  const regex = /<xxiv-inline-variable>([\s\S]*?)<\/xxiv-inline-variable>/g;
   return text.replace(regex, (match, variableContent) => {
     try {
       const parsed = JSON.parse(variableContent.trim());
@@ -2840,7 +2840,7 @@ async function injectCollectionDataForHtml(
   // Handle DynamicTextVariable (legacy string format with inline variable tags)
   else if (textVariable && textVariable.type === 'dynamic_text') {
     const textContent = textVariable.data.content;
-    if (textContent.includes('<ycode-inline-variable>')) {
+    if (textContent.includes('<xxiv-inline-variable>')) {
       const mockItem: CollectionItemWithValues = {
         id: 'temp',
         collection_id: 'temp',

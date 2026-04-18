@@ -6,7 +6,7 @@
  * 1. Adding an AppDefinition here
  * 2. Creating the app module under lib/apps/<app-id>/
  * 3. Adding a logo.svg in lib/apps/<app-id>/logo.svg
- * 4. Creating proxy API routes under app/ycode/api/apps/<app-id>/
+ * 4. Creating proxy API routes under app/xxiv/api/apps/<app-id>/
  */
 
 import type { StaticImageData } from 'next/image';
@@ -59,7 +59,7 @@ export const apps: AppDefinition[] = [
   {
     id: 'airtable',
     name: 'Airtable',
-    description: 'One-way sync from Airtable tables to your Ycode collections with real-time webhook support.',
+    description: 'One-way sync from Airtable tables to your Xxiv collections with real-time webhook support.',
     logo: airtableLogo,
     categories: ['popular', 'cms-data'],
     implemented: true,

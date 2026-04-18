@@ -1260,7 +1260,7 @@ export function getTextWithBinding(
   const textVariable = layer.variables?.text;
   if (textVariable && textVariable.type === 'dynamic_text') {
     const content = textVariable.data.content;
-    if (content.includes('<ycode-inline-variable>')) {
+    if (content.includes('<xxiv-inline-variable>')) {
       // Resolve inline variables with timezone-aware date formatting
       return resolveInlineVariablesFromData(content, collectionItemData, null, timezone);
     }
@@ -1621,7 +1621,7 @@ export function hasSingleInlineVariable(layer: Layer): boolean {
   const content = textVariable.data.content;
 
   // Match all inline variable tags
-  const regex = /<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g;
+  const regex = /<xxiv-inline-variable>[\s\S]*?<\/xxiv-inline-variable>/g;
   const matches = content.match(regex);
 
   if (!matches || matches.length !== 1) {
@@ -1672,7 +1672,7 @@ export function getLayerCmsFieldBinding(layer: Layer): CmsFieldBindingInfo | nul
   // Legacy dynamic_text inline variables
   if (vars.text?.type === 'dynamic_text') {
     const content = vars.text.data.content;
-    const match = content.match(/<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/);
+    const match = content.match(/<xxiv-inline-variable>([\s\S]*?)<\/xxiv-inline-variable>/);
     if (match) {
       try {
         const parsed = JSON.parse(match[1]);
@@ -2470,7 +2470,7 @@ export async function createComponentViaApi(
   layers: Layer[]
 ): Promise<Component | null> {
   try {
-    const response = await fetch('/ycode/api/components', {
+    const response = await fetch('/xxiv/api/components', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2535,7 +2535,7 @@ export function replaceLayerWithComponentInstance(
 // ─── CMS Data-Binding Reset Utilities ─────────────────────────────────
 
 /** Regex for matching inline variable tags (duplicated from inline-variables to avoid circular imports) */
-const INLINE_VAR_REGEX = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+const INLINE_VAR_REGEX = /<xxiv-inline-variable>([\s\S]*?)<\/xxiv-inline-variable>/g;
 
 /**
  * Represents the collection context available at a specific position in the layer tree.

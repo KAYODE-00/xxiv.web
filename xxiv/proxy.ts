@@ -6,10 +6,10 @@ import type { NextRequest } from 'next/server';
  * Public API routes that skip authentication.
  */
 const PUBLIC_API_PREFIXES = [
-  '/ycode/api/setup/',    // Setup wizard — needed before any user exists
-  '/ycode/api/supabase/', // Supabase config — needed for browser client init
-  '/ycode/api/auth/',     // Auth callbacks and session checks
-  '/ycode/api/v1/',       // Public API — has own API key auth
+  '/xxiv/api/setup/',    // Setup wizard — needed before any user exists
+  '/xxiv/api/supabase/', // Supabase config — needed for browser client init
+  '/xxiv/api/auth/',     // Auth callbacks and session checks
+  '/xxiv/api/v1/',       // Public API — has own API key auth
 ];
 
 /**
@@ -46,7 +46,7 @@ const XXIV_PUBLIC_ROUTES = [
 const PUBLIC_COLLECTION_ITEM_SUFFIXES = ['/items/filter', '/items/load-more'];
 
 const PUBLIC_API_EXACT = [
-  '/ycode/api/revalidate', // Cache revalidation — has own secret token auth
+  '/xxiv/api/revalidate', // Cache revalidation — has own secret token auth
 ];
 
 /**
@@ -73,7 +73,7 @@ function getSupabaseEnvConfig(): { url: string; anonKey: string } | null {
 
 function isPublicApiRoute(pathname: string, method: string): boolean {
   // POST to form-submissions is public (website visitors submitting forms)
-  if (pathname === '/ycode/api/form-submissions' && method === 'POST') {
+  if (pathname === '/xxiv/api/form-submissions' && method === 'POST') {
     return true;
   }
 
@@ -81,7 +81,7 @@ function isPublicApiRoute(pathname: string, method: string): boolean {
   if (PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return true;
 
   // Collection item endpoints for published pages (POST only — filter, load-more)
-  if (method === 'POST' && pathname.startsWith('/ycode/api/collections/') &&
+  if (method === 'POST' && pathname.startsWith('/xxiv/api/collections/') &&
       PUBLIC_COLLECTION_ITEM_SUFFIXES.some(suffix => pathname.endsWith(suffix))) {
     return true;
   }
@@ -172,14 +172,14 @@ export async function proxy(request: NextRequest) {
 
   // MCP endpoint uses its own token-based authentication — skip session auth.
   // Cloud overlay proxies MUST also exempt this path to avoid login redirects.
-  if (pathname.startsWith('/ycode/mcp/')) {
+  if (pathname.startsWith('/xxiv/mcp/')) {
     const response = NextResponse.next();
     response.headers.set('x-pathname', pathname);
     return response;
   }
 
-  // ── XXIV special: /ycode/welcome always redirects to /dashboard ──────────
-  if (pathname === '/ycode/welcome' || pathname.startsWith('/ycode/welcome')) {
+  // ── XXIV special: /xxiv/welcome always redirects to /dashboard ──────────
+  if (pathname === '/xxiv/welcome' || pathname.startsWith('/xxiv/welcome')) {
     return NextResponse.redirect(new URL('/dashboard', origin));
   }
 
@@ -206,17 +206,17 @@ export async function proxy(request: NextRequest) {
   }
 
   // Protect API and preview routes with auth
-  if (pathname.startsWith('/ycode/api') || pathname.startsWith('/ycode/preview')) {
+  if (pathname.startsWith('/xxiv/api') || pathname.startsWith('/xxiv/preview')) {
     const authResponse = await verifyApiAuth(request);
     if (authResponse) {
-      if (pathname.startsWith('/ycode/preview')) {
-        return NextResponse.redirect(new URL('/ycode', request.url));
+      if (pathname.startsWith('/xxiv/preview')) {
+        return NextResponse.redirect(new URL('/xxiv', request.url));
       }
       return authResponse;
     }
   }
 
-  const isPublicPage = !pathname.startsWith('/ycode')
+  const isPublicPage = !pathname.startsWith('/xxiv')
     && !pathname.startsWith('/_next')
     && !pathname.startsWith('/api')
     && !pathname.startsWith('/dynamic');
@@ -236,7 +236,7 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next();
 
   // Persist current XXIV site context for clean preview URLs.
-  if (pathname.startsWith('/ycode') && xxivSiteId) {
+  if (pathname.startsWith('/xxiv') && xxivSiteId) {
     response.cookies.set('xxiv_site_id', xxivSiteId, {
       path: '/',
       httpOnly: false,

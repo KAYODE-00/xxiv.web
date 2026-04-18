@@ -107,7 +107,7 @@ export default async function DynamicHome({ searchParams }: DynamicHomeProps) {
       gaMeasurementId={globalSettings.gaMeasurementId}
       globalCustomCodeHead={globalSettings.globalCustomCodeHead}
       globalCustomCodeBody={globalSettings.globalCustomCodeBody}
-      ycodeBadge={globalSettings.ycodeBadge}
+      xxivBadge={globalSettings.xxivBadge}
     />
   );
 }

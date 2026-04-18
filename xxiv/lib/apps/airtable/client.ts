@@ -10,7 +10,7 @@ import type {
   AirtableFieldMapping,
 } from './types';
 
-const BASE = '/ycode/api/apps/airtable';
+const BASE = '/xxiv/api/apps/airtable';
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 import { ToastError } from '@/lib/toast-error';

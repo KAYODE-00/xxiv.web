@@ -2,7 +2,7 @@
  * CMS Variables Utilities
  *
  * Utilities for parsing and converting CMS variable strings
- * Format: <ycode-inline-variable>{"type":"field","data":{"field_id":"..."}}</ycode-inline-variable>
+ * Format: <xxiv-inline-variable>{"type":"field","data":{"field_id":"..."}}</xxiv-inline-variable>
  */
 
 import type { CollectionField, InlineVariable } from '@/types';
@@ -155,8 +155,8 @@ export function getVariableLabel(
 /**
  * Converts string with variables to Tiptap JSON content
  * Supports both ID-based format and legacy embedded JSON format
- * ID-based: <ycode-inline-variable id="uuid"></ycode-inline-variable>
- * Legacy: <ycode-inline-variable>JSON</ycode-inline-variable>
+ * ID-based: <xxiv-inline-variable id="uuid"></xxiv-inline-variable>
+ * Legacy: <xxiv-inline-variable>JSON</xxiv-inline-variable>
  */
 export function parseValueToContent(
   text: string,
@@ -171,7 +171,7 @@ export function parseValueToContent(
   }>;
 } {
   const content: any[] = [];
-  const regex = /<ycode-inline-variable(?:\s+id="([^"]+)")?>([\s\S]*?)<\/ycode-inline-variable>/g;
+  const regex = /<xxiv-inline-variable(?:\s+id="([^"]+)")?>([\s\S]*?)<\/xxiv-inline-variable>/g;
   let lastIndex = 0;
   let match;
 
@@ -247,7 +247,7 @@ export function parseValueToContent(
 
 /**
  * Converts Tiptap JSON content back to string
- * Outputs format: <ycode-inline-variable>{"type":"field","data":{"field_id":"..."}}</ycode-inline-variable>
+ * Outputs format: <xxiv-inline-variable>{"type":"field","data":{"field_id":"..."}}</xxiv-inline-variable>
  */
 export function convertContentToValue(content: any): string {
   let result = '';
@@ -260,7 +260,7 @@ export function convertContentToValue(content: any): string {
             result += node.text;
           } else if (node.type === 'dynamicVariable') {
             if (node.attrs.variable) {
-              result += `<ycode-inline-variable>${JSON.stringify(node.attrs.variable)}</ycode-inline-variable>`;
+              result += `<xxiv-inline-variable>${JSON.stringify(node.attrs.variable)}</xxiv-inline-variable>`;
             }
           }
         }

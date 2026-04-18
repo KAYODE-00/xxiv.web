@@ -28,7 +28,7 @@ export interface GlobalPageSettings {
   colorVariablesCss?: string | null;
   globalCustomCodeHead?: string | null;
   globalCustomCodeBody?: string | null;
-  ycodeBadge?: boolean;
+  xxivBadge?: boolean;
   faviconUrl?: string | null;
   webClipUrl?: string | null;
 }
@@ -71,7 +71,7 @@ export const fetchGlobalPageSettings = cache(async (): Promise<GlobalPageSetting
     'published_css',
     'custom_code_head',
     'custom_code_body',
-    'ycode_badge',
+    'xxiv_badge',
     'favicon_asset_id',
     'web_clip_asset_id',
   ]);
@@ -112,7 +112,7 @@ export const fetchGlobalPageSettings = cache(async (): Promise<GlobalPageSetting
     colorVariablesCss,
     globalCustomCodeHead: settings.custom_code_head || null,
     globalCustomCodeBody: settings.custom_code_body || null,
-    ycodeBadge: settings.ycode_badge ?? true,
+    xxivBadge: settings.xxiv_badge ?? true,
     faviconUrl,
     webClipUrl,
   };
@@ -149,9 +149,9 @@ export async function generatePageMetadata(
   }
 
   // Build description - resolve field variables if collection item is available
-  let description = seo?.description || fallbackDescription || `${page.name} - Built with Ycode`;
+  let description = seo?.description || fallbackDescription || `${page.name} - Built with Xxiv`;
   if (collectionItem && seo?.description) {
-    description = resolveInlineVariables(seo.description, collectionItem) || fallbackDescription || `${page.name} - Built with Ycode`;
+    description = resolveInlineVariables(seo.description, collectionItem) || fallbackDescription || `${page.name} - Built with Xxiv`;
   }
 
   // Base metadata

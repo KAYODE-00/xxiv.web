@@ -131,7 +131,7 @@ export function TemplateGallery({
       }
 
       onApplySuccess?.();
-      window.location.href = '/ycode';
+      window.location.href = '/xxiv';
     } catch (err) {
       console.error('[TemplateGallery] Apply error:', err);
       setApplyError(

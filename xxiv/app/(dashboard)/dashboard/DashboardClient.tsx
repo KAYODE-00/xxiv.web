@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase-browser';
 import CreateSiteModal from '@/components/xxiv/CreateSiteModal';
+import AiBuilderButton from '@/components/ai-builder/AiBuilderButton';
 import { deleteSite, openSiteEditor } from '../actions/sites';
 
 type SiteRow = {
@@ -350,9 +351,14 @@ export default function DashboardClient({
                           fontWeight: 600,
                           cursor: 'pointer',
                         }}
-                      >
-                        Edit
-                      </button>
+                        >
+                          Edit
+                        </button>
+
+                      <AiBuilderButton
+                        projectId={site.id}
+                        className="h-[42px] flex-1 rounded-[10px] border border-[#1a1a1a] bg-transparent px-3 text-[13px] font-medium text-white hover:bg-white/5"
+                      />
 
                       <div style={{ position: 'relative' }}>
                         <button
@@ -479,7 +485,7 @@ export default function DashboardClient({
           >
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Delete site?</div>
             <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
-              This will permanently remove <span style={{ color: '#fff' }}>{confirmDeleteFor.name}</span> and its Ycode pages.
+              This will permanently remove <span style={{ color: '#fff' }}>{confirmDeleteFor.name}</span> and its Xxiv pages.
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button

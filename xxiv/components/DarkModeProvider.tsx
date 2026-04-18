@@ -23,7 +23,7 @@ function shouldApplyDark(): boolean {
  * based on the current pathname. This avoids using headers() in
  * the root layout which would force all pages to be dynamic.
  * 
- * For /ycode/* routes (except preview), it respects the user's
+ * For /xxiv/* routes (except preview), it respects the user's
  * saved theme preference from localStorage.
  * For all other routes, dark mode is removed.
  */
@@ -31,8 +31,8 @@ export default function DarkModeProvider({ children }: { children: React.ReactNo
   const pathname = usePathname();
   
   useEffect(() => {
-    const isPreviewRoute = pathname?.startsWith('/ycode/preview');
-    const isBuilderRoute = !isPreviewRoute && pathname?.startsWith('/ycode');
+    const isPreviewRoute = pathname?.startsWith('/xxiv/preview');
+    const isBuilderRoute = !isPreviewRoute && pathname?.startsWith('/xxiv');
     
     if (isBuilderRoute) {
       if (shouldApplyDark()) {

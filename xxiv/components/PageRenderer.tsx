@@ -119,7 +119,7 @@ interface PageRendererProps {
   gaMeasurementId?: string | null;
   globalCustomCodeHead?: string | null;
   globalCustomCodeBody?: string | null;
-  ycodeBadge?: boolean;
+  xxivBadge?: boolean;
   passwordProtection?: PasswordProtectionContext;
 }
 
@@ -159,7 +159,7 @@ export default async function PageRenderer({
   gaMeasurementId,
   globalCustomCodeHead,
   globalCustomCodeBody,
-  ycodeBadge = true,
+  xxivBadge = true,
   passwordProtection,
 }: PageRendererProps) {
   // Check if this is a 401 error page that needs password form
@@ -347,14 +347,14 @@ export default async function PageRenderer({
 
       {/* Strip native browser appearance from form elements so Tailwind classes apply */}
       <style
-        id="ycode-form-reset"
+        id="xxiv-form-reset"
         dangerouslySetInnerHTML={{ __html: 'input,select,textarea{appearance:none;-webkit-appearance:none}select{background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23737373\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'m6 9 6 6 6-6\'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:16px 16px}input[type="checkbox"]:checked,input[type="radio"]:checked{background-color:currentColor;border-color:transparent;background-size:100% 100%;background-position:center;background-repeat:no-repeat}input[type="checkbox"]:checked{background-image:url("data:image/svg+xml,%3csvg viewBox=\'0 0 16 16\' fill=\'white\' xmlns=\'http://www.w3.org/2000/svg\'%3e%3cpath d=\'M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z\'/%3e%3c/svg%3e")}input[type="radio"]:checked{background-image:url("data:image/svg+xml,%3csvg viewBox=\'0 0 16 16\' fill=\'white\' xmlns=\'http://www.w3.org/2000/svg\'%3e%3ccircle cx=\'8\' cy=\'8\' r=\'3\'/%3e%3c/svg%3e")}' }}
       />
 
       {/* Inject CSS directly — React 19 hoists <style> with precedence to <head> */}
       {generatedCss && (
         <style
-          id="ycode-styles"
+          id="xxiv-styles"
           dangerouslySetInnerHTML={{ __html: generatedCss }}
         />
       )}
@@ -362,7 +362,7 @@ export default async function PageRenderer({
       {/* Inject color variable CSS custom properties */}
       {colorVariablesCss && (
         <style
-          id="ycode-color-vars"
+          id="xxiv-color-vars"
           dangerouslySetInnerHTML={{ __html: colorVariablesCss }}
         />
       )}
@@ -379,7 +379,7 @@ export default async function PageRenderer({
       {/* Inject custom font @font-face rules and font class CSS */}
       {fontsCss && (
         <style
-          id="ycode-fonts"
+          id="xxiv-fonts"
           dangerouslySetInnerHTML={{ __html: fontsCss }}
         />
       )}
@@ -387,7 +387,7 @@ export default async function PageRenderer({
       {/* Inject initial animation styles to prevent flickering */}
       {initialAnimationCSS && (
         <style
-          id="ycode-gsap-initial-styles"
+          id="xxiv-gsap-initial-styles"
           dangerouslySetInnerHTML={{ __html: initialAnimationCSS }}
         />
       )}
@@ -416,7 +416,7 @@ export default async function PageRenderer({
       {/* Apply body layer classes immediately to prevent FOUC */}
       <script
         dangerouslySetInnerHTML={{
-          __html: `document.body.className=document.body.className.replace(/\\bycode-body-applied\\b/g,'')+' ${(bodyClasses || 'bg-white').replace(/'/g, "\\'")} ycode-body-applied'`,
+          __html: `document.body.className=document.body.className.replace(/\\bxxiv-body-applied\\b/g,'')+' ${(bodyClasses || 'bg-white').replace(/'/g, "\\'")} xxiv-body-applied'`,
         }}
       />
       <BodyClassApplier classes={bodyClasses || 'bg-white'} />
@@ -480,13 +480,13 @@ export default async function PageRenderer({
         <CustomCodeInjector html={pageCustomCodeBody} />
       )}
 
-      {/* Ycode badge (only on published pages, not in preview) */}
-      {ycodeBadge && !isPreview && (
+      {/* Xxiv badge (only on published pages, not in preview) */}
+      {xxivBadge && !isPreview && (
         <a
-          href="https://ycode.com"
+          href="https://xxiv.com"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="This website was built using Ycode."
+          aria-label="This website was built using Xxiv."
           style={{
             height: 'auto',
             background: '#050606',

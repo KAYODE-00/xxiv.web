@@ -12,6 +12,8 @@ export interface XxivSiteRecord {
   home_page_id: string | null;
   is_published: boolean | null;
   publish_status: string | null;
+  mcp_token?: string | null;
+  mcp_url?: string | null;
   created_at: string | null;
   updated_at: string | null;
 }

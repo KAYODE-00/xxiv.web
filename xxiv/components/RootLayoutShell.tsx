@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const defaultMetadata: Metadata = {
-  title: 'Ycode - Visual Website Builder',
+  title: 'Xxiv - Visual Website Builder',
   description: 'Self-hosted visual website builder',
 };
 

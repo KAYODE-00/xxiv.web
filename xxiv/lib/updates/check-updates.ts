@@ -1,9 +1,9 @@
 /**
- * Check for Ycode updates from the official repository.
+ * Check for Xxiv updates from the official repository.
  * Extracted for reuse and to allow cloud overlay to return "no update" in hosted deployments.
  */
 
-const UPSTREAM_REPO = 'ycode/ycode'; // Official Ycode repo
+const UPSTREAM_REPO = 'xxiv/xxiv'; // Official Xxiv repo
 
 export interface CheckUpdatesResult {
   available: boolean;
@@ -41,7 +41,7 @@ function compareVersions(a: string, b: string): number {
 }
 
 /**
- * Check for updates from the official Ycode repository
+ * Check for updates from the official Xxiv repository
  */
 export async function checkForUpdates(currentVersion: string): Promise<CheckUpdatesResult> {
   try {
@@ -50,7 +50,7 @@ export async function checkForUpdates(currentVersion: string): Promise<CheckUpda
       {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'Ycode-Update-Checker',
+          'User-Agent': 'Xxiv-Update-Checker',
         },
         cache: 'no-store',
       }
@@ -86,7 +86,7 @@ export async function checkForUpdates(currentVersion: string): Promise<CheckUpda
           {
             headers: {
               'Accept': 'application/vnd.github.v3+json',
-              'User-Agent': 'Ycode-Update-Checker',
+              'User-Agent': 'Xxiv-Update-Checker',
             },
             cache: 'no-store',
           }
@@ -121,7 +121,7 @@ export async function checkForUpdates(currentVersion: string): Promise<CheckUpda
           'Click the <strong class="text-white">"Sync fork"</strong> button (above the file list)',
           'Click <strong class="text-white">"Update branch"</strong>',
           'Vercel will automatically redeploy with the latest changes',
-          '⚠️ Please reload this page (Ycode builder) after deployment to apply the latest migrations',
+          '⚠️ Please reload this page (Xxiv builder) after deployment to apply the latest migrations',
         ];
       } else {
         updateMethod = 'git-pull';
@@ -136,7 +136,7 @@ export async function checkForUpdates(currentVersion: string): Promise<CheckUpda
           `Merge updates:<br/><code class="bg-blue-800 px-2 py-1 rounded text-xs font-mono">git merge upstream/main</code>`,
           `Push to your repo:<br/><code class="bg-blue-800 px-2 py-1 rounded text-xs font-mono">git push origin main</code>`,
           'Vercel will automatically redeploy',
-          '⚠️ Please reload this page (Ycode builder) after deployment to apply the latest migrations',
+          '⚠️ Please reload this page (Xxiv builder) after deployment to apply the latest migrations',
         ];
       }
     } else {
