@@ -21,6 +21,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { getUserInitials, generateUserColor } from '@/lib/collaboration-utils';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useEditorStore } from '@/stores/useEditorStore';
 
 interface ActiveUser {
   id: string;
@@ -40,6 +41,7 @@ interface PendingInvite {
 export default function UsersSettingsPage() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
+  const siteId = useEditorStore((state) => state.xxivCollaborationSiteId);
 
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
@@ -57,12 +59,15 @@ export default function UsersSettingsPage() {
 
   // Fetch users on mount
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (siteId) {
+      fetchUsers();
+    }
+  }, [siteId]);
 
   const fetchUsers = async () => {
+    if (!siteId) return;
     try {
-      const response = await fetch('/xxiv/api/auth/users');
+      const response = await fetch(`/xxiv/api/auth/users?xxiv_site_id=${siteId}`);
       const result = await response.json();
       if (result.data) {
         setActiveUsers(result.data.activeUsers || []);
@@ -95,6 +100,7 @@ export default function UsersSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: inviteEmail.trim(),
+          xxiv_site_id: siteId,
           redirectTo: window.location.origin + '/xxiv/accept-invite',
         }),
       });
@@ -136,7 +142,7 @@ export default function UsersSettingsPage() {
     if (!userToDelete) return;
 
     try {
-      const response = await fetch(`/xxiv/api/auth/users?id=${userToDelete.id}`, {
+      const response = await fetch(`/xxiv/api/auth/users?id=${userToDelete.id}&xxiv_site_id=${siteId}`, {
         method: 'DELETE',
       });
 
@@ -162,6 +168,7 @@ export default function UsersSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
+          xxiv_site_id: siteId,
           redirectTo: window.location.origin + '/xxiv/accept-invite',
         }),
       });

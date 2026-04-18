@@ -490,6 +490,10 @@ export default function XXIVBuilder({ children }: XXIVBuilderProps = {} as XXIVB
 
             if (response.error === 'Not authenticated') {
               toast.error('You have been disconnected, please reload the page');
+            } else if (response.error === 'Site not found' || response.error === 'Site ID is required') {
+              toast.error('You do not have access to this project or the site ID is missing');
+              router.push('/dashboard');
+              return;
             }
 
             useEditorStore.getState().setXxivCollaborationSiteId(resolveXxivCollaborationSite([]));

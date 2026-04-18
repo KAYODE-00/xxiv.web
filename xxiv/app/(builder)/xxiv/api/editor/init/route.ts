@@ -91,8 +91,7 @@ export async function GET(request: NextRequest) {
       getGoogleMapsEmbedApiKey(),
     ]);
 
-    // Optional XXIV scoping: when a site is provided, limit the builder data
-    // (pages/layers) to pages tagged with settings.xxiv.site_id = siteId.
+    // XXIV scoping is REQUIRED for these routes
     if (xxivSiteId) {
       const config = getSupabaseEnvConfig();
       if (!config) {
@@ -123,7 +122,8 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (siteError || !site?.id) {
-        return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+        // Specifically return an error that the frontend can recognize for redirection
+        return NextResponse.json({ error: 'Site not found' }, { status: 403 });
       }
 
       const scopedPages = (pages || [])
@@ -167,39 +167,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Inject app-sourced tokens into settings so they're available via settingsByKey
-    const enrichedSettings = [...settings];
-    const injectedTokens: [string, string, string | null][] = [
-      ['app:mapbox:access_token', 'mapbox_access_token', resolvedMapboxToken],
-      ['app:google-maps-embed:api_key', 'google_maps_embed_api_key', resolvedGoogleMapsEmbedKey],
-    ];
-    for (const [id, key, value] of injectedTokens) {
-      if (value) {
-        enrichedSettings.push({
-          id,
-          key,
-          value,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-      }
-    }
-
-    return NextResponse.json({
-      data: {
-        pages,
-        drafts,
-        folders,
-        components,
-        styles,
-        settings: enrichedSettings,
-        collections,
-        locales,
-        assets,
-        assetFolders,
-        fonts,
-      },
-    });
+    // If site ID is missing in XXIV mode, it's an error
+    return NextResponse.json({ error: 'Site ID is required' }, { status: 403 });
   } catch (error) {
     console.error('Error loading editor data:', error);
     return NextResponse.json(

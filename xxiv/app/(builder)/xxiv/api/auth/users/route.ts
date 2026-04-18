@@ -9,65 +9,63 @@ import { noCache } from '@/lib/api-response';
  */
 export async function GET(request: NextRequest) {
   try {
-    const client = await getSupabaseAdmin();
+    const { searchParams } = new URL(request.url);
+    const siteId = searchParams.get('xxiv_site_id');
 
-    if (!client) {
-      return noCache(
-        { error: 'Supabase not configured' },
-        500
-      );
+    if (!siteId) {
+       // For backwards compatibility or dashboard, return all if no siteId? 
+       // Actually, XXIV prefers isolation. Let's return error if siteId is missing.
+       return noCache({ error: 'Site ID is required' }, 400);
     }
 
-    // Fetch all users from Supabase Auth
-    const { data, error } = await client.auth.admin.listUsers({
+    const client = await getSupabaseAdmin();
+    if (!client) {
+      return noCache({ error: 'Supabase not configured' }, 500);
+    }
+
+    // 1. Get site owner
+    const { data: site } = await client
+      .from('xxiv_sites')
+      .select('user_id')
+      .eq('id', siteId)
+      .single();
+
+    // 2. Get site members
+    const { data: members } = await client
+      .from('xxiv_site_members')
+      .select('user_id')
+      .eq('site_id', siteId);
+
+    // 3. Get pending invites
+    const { data: invites } = await client
+      .from('xxiv_site_invites')
+      .select('id, email, created_at')
+      .eq('site_id', siteId)
+      .eq('status', 'pending');
+
+    const allowedUserIds = new Set<string>();
+    if (site?.user_id) allowedUserIds.add(site.user_id);
+    members?.forEach(m => allowedUserIds.add(m.user_id));
+
+    // 4. Fetch all users from Supabase Auth to get metadata
+    // (Filtering in Auth API by IDs is limited, so we fetch and filter manually)
+    const { data: authData, error: authError } = await client.auth.admin.listUsers({
       page: 1,
       perPage: 1000,
     });
 
-    if (error) {
-      console.error('[users] Error listing users:', error);
-      return noCache(
-        { error: error.message },
-        500
-      );
+    if (authError) {
+      console.error('[users] Error listing users:', authError);
+      return noCache({ error: authError.message }, 500);
     }
 
-    // Separate users into active and pending
-    const activeUsers: Array<{
-      id: string;
-      email: string;
-      display_name: string | null;
-      avatar_url: string | null;
-      created_at: string;
-      last_sign_in_at: string | null;
-    }> = [];
+    const activeUsers: any[] = [];
+    const pendingInvites: any[] = [];
 
-    const pendingInvites: Array<{
-      id: string;
-      email: string;
-      invited_at: string;
-    }> = [];
-
-    for (const user of data.users) {
-      // Get metadata - check both user_metadata and raw_user_meta_data
-       
-      const userAny = user as any;
-      const metadata = user.user_metadata || userAny.raw_user_meta_data || {};
-
-      // Check if this user was invited (we set invited_at when sending invite)
-      const wasInvited = !!metadata.invited_at;
-
-      // A user is "pending" if:
-      // 1. They were invited AND haven't signed in after the invite
-      // 2. They have no identities (no password set)
-      const hasIdentities = user.identities && user.identities.length > 0;
-      const hasSignedIn = user.last_sign_in_at !== null;
-
-      // User is pending if they were invited but haven't completed setup
-      // (no sign-in after invite, or no identities meaning no password set)
-      const isPending = wasInvited && (!hasSignedIn || !hasIdentities);
-
-      if (!isPending) {
+    // Filter Auth users based on site membership
+    for (const user of authData.users) {
+      if (allowedUserIds.has(user.id)) {
+        const metadata = user.user_metadata || (user as any).raw_user_meta_data || {};
         activeUsers.push({
           id: user.id,
           email: user.email || '',
@@ -76,15 +74,17 @@ export async function GET(request: NextRequest) {
           created_at: user.created_at,
           last_sign_in_at: user.last_sign_in_at || null,
         });
-      } else {
-        // User was invited but hasn't completed setup
-        pendingInvites.push({
-          id: user.id,
-          email: user.email || '',
-          invited_at: metadata.invited_at || user.created_at,
-        });
       }
     }
+
+    // Add pending invites from the site_invites table
+    invites?.forEach(invite => {
+      pendingInvites.push({
+        id: invite.id,
+        email: invite.email,
+        invited_at: invite.created_at,
+      });
+    });
 
     return noCache({
       data: {
@@ -94,10 +94,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[users] Unexpected error:', error);
-    return noCache(
-      { error: 'Failed to fetch users' },
-      500
-    );
+    return noCache({ error: 'Failed to fetch users' }, 500);
   }
 }
 
@@ -110,31 +107,44 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('id');
+    const siteId = searchParams.get('xxiv_site_id');
 
     if (!userId) {
-      return noCache(
-        { error: 'User ID is required' },
-        400
-      );
+      return noCache({ error: 'User ID is required' }, 400);
     }
 
     const client = await getSupabaseAdmin();
-
     if (!client) {
-      return noCache(
-        { error: 'Supabase not configured' },
-        500
-      );
+      return noCache({ error: 'Supabase not configured' }, 500);
     }
 
+    if (siteId) {
+      // 1. Try to remove from site_members (if it's a registered user)
+      const { error: memberError } = await client
+        .from('xxiv_site_members')
+        .delete()
+        .eq('site_id', siteId)
+        .eq('user_id', userId);
+
+      // 2. Also try to remove from site_invites (if it's a pending invite)
+      // Note: in this case, the 'userId' passed might actually be the invite ID
+      const { error: inviteError } = await client
+        .from('xxiv_site_invites')
+        .delete()
+        .eq('id', userId)
+        .eq('site_id', siteId);
+
+      return noCache({
+        data: { success: true, message: 'User removed from site' },
+      });
+    }
+
+    // LEGACY / SUPERADMIN: Global delete (only if siteId is omitted)
     const { error } = await client.auth.admin.deleteUser(userId);
 
     if (error) {
       console.error('[users] Error deleting user:', error);
-      return noCache(
-        { error: error.message },
-        400
-      );
+      return noCache({ error: error.message }, 400);
     }
 
     return noCache({
@@ -142,9 +152,6 @@ export async function DELETE(request: NextRequest) {
     });
   } catch (error) {
     console.error('[users] Unexpected error:', error);
-    return noCache(
-      { error: 'Failed to delete user' },
-      500
-    );
+    return noCache({ error: 'Failed to delete user' }, 500);
   }
 }
