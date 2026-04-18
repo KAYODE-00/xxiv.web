@@ -9,8 +9,7 @@ import { noCache } from '@/lib/api-response';
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { email, redirectTo } = body;
+    const { email, redirectTo, xxiv_site_id } = await request.json();
 
     if (!email) {
       return noCache(
@@ -42,7 +41,6 @@ export async function POST(request: NextRequest) {
       return noCache({ error: 'Unauthorized' }, 401);
     }
 
-    const { email, redirectTo, xxiv_site_id } = await request.json();
 
     if (!email) {
       return noCache({ error: 'Email is required' }, 400);

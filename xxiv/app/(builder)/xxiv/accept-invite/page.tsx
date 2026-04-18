@@ -82,10 +82,13 @@ export default function AcceptInvitePage() {
           return;
         }
 
-        // Check if user is already logged in (maybe clicked link while logged in)
-        const { data: { session } } = await supabase.auth.getSession();
-
         if (session?.user) {
+          // Extra step for existing users: ensure they are enrolled in the project 
+          // they just clicked the link for before redirecting.
+          if (session.user.email) {
+            await enrollInInvitedSites(session.user.email);
+          }
+          
           // User is already authenticated, redirect to app
           router.push('/xxiv');
           return;

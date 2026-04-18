@@ -18,14 +18,41 @@ export async function getUserSites() {
   const user = await requireAuthUser();
   const supabase = await createDashboardClient();
 
-  const { data, error } = await supabase
+  // 1. Fetch sites owned by user
+  const { data: owned, error: ownedError } = await supabase
     .from('xxiv_sites')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
-  if (error) throw error;
-  return data || [];
+  if (ownedError) throw ownedError;
+
+  // 2. Fetch sites where user is a collaborator
+  const { data: memberships, error: memberError } = await supabase
+    .from('xxiv_site_members')
+    .select('site_id')
+    .eq('user_id', user.id);
+
+  if (memberError) throw memberError;
+
+  const collabSiteIds = (memberships || []).map(m => m.site_id);
+  let collaborative: any[] = [];
+
+  if (collabSiteIds.length > 0) {
+    const { data: collabData, error: collabError } = await supabase
+      .from('xxiv_sites')
+      .select('*, owner:user_id(email)')
+      .in('id', collabSiteIds)
+      .order('created_at', { ascending: false });
+    
+    if (collabError) throw collabError;
+    collaborative = collabData || [];
+  }
+
+  return {
+    owned: owned || [],
+    collaborative: collaborative
+  };
 }
 
 export async function getSiteById(siteId: string) {
@@ -36,7 +63,6 @@ export async function getSiteById(siteId: string) {
     .from('xxiv_sites')
     .select('*')
     .eq('id', siteId)
-    .eq('user_id', user.id)
     .single();
 
   if (error) throw error;
@@ -133,7 +159,6 @@ export async function deleteSite(siteId: string) {
     .from('xxiv_sites')
     .select('*')
     .eq('id', siteId)
-    .eq('user_id', user.id)
     .single();
 
   if (siteError) throw siteError;
@@ -173,7 +198,6 @@ export async function getSiteSettings(siteId: string) {
     .from('xxiv_sites')
     .select('*')
     .eq('id', siteId)
-    .eq('user_id', user.id)
     .single();
 
   if (error) throw error;
@@ -193,7 +217,6 @@ export async function connectCustomDomain(siteId: string, rawDomain: string) {
     .from('xxiv_sites')
     .select('id, slug, cf_project_name, live_url')
     .eq('id', siteId)
-    .eq('user_id', user.id)
     .single();
 
   if (error || !site) throw new Error('Site not found');
@@ -233,7 +256,6 @@ export async function checkCustomDomainStatus(siteId: string) {
     .from('xxiv_sites')
     .select('id, cf_project_name, custom_domain')
     .eq('id', siteId)
-    .eq('user_id', user.id)
     .single();
 
   if (error || !site) throw new Error('Site not found');
@@ -270,7 +292,6 @@ export async function removeCustomDomain(siteId: string) {
     .from('xxiv_sites')
     .select('id, cf_project_name, custom_domain')
     .eq('id', siteId)
-    .eq('user_id', user.id)
     .single();
 
   if (error || !site) throw new Error('Site not found');
@@ -303,7 +324,6 @@ export async function openSiteEditor(siteId: string) {
     .from('xxiv_sites')
     .select('home_page_id')
     .eq('id', siteId)
-    .eq('user_id', user.id)
     .single();
 
   if (error) throw error;
