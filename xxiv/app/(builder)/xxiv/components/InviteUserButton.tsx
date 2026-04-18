@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { useEditorStore } from '@/stores/useEditorStore';
 
 interface InviteUserButtonProps {
   className?: string;
@@ -20,6 +21,7 @@ interface InviteUserButtonProps {
 export const InviteUserButton: React.FC<InviteUserButtonProps> = ({
   className = '',
 }) => {
+  const xxivCollaborationSiteId = useEditorStore((state) => state.xxivCollaborationSiteId);
   const [isOpen, setIsOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -63,6 +65,7 @@ export const InviteUserButton: React.FC<InviteUserButtonProps> = ({
         },
         body: JSON.stringify({
           email: email.trim(),
+          xxiv_site_id: xxivCollaborationSiteId,
           redirectTo: window.location.origin + '/xxiv/accept-invite',
         }),
       });

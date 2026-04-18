@@ -28,18 +28,21 @@ export function getXxivSiteIdFromBrowser(): string | null {
 export function collaborationNamespaceSegment(
   xxivSiteId: string | null | undefined,
   authUserId: string | null | undefined,
-): string {
+): string | null {
   if (xxivSiteId) return `site:${xxivSiteId}`;
-  if (authUserId) return `user:${authUserId}`;
-  return 'anon';
+  
+  // No site ID means collaboration is disabled (per user requirement)
+  return null;
 }
 
 export function scopedCollaborationChannel(
   baseName: string,
   xxivSiteId: string | null | undefined,
   authUserId: string | null | undefined,
-): string {
-  return `${baseName}:${collaborationNamespaceSegment(xxivSiteId, authUserId)}`;
+): string | null {
+  const segment = collaborationNamespaceSegment(xxivSiteId, authUserId);
+  if (!segment) return null;
+  return `${baseName}:${segment}`;
 }
 
 /** Server / MCP: derive the same segment from page settings (untagged = legacy global bucket). */

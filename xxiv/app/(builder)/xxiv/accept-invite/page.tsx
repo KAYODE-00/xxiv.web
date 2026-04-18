@@ -141,9 +141,12 @@ export default function AcceptInvitePage() {
       });
 
       if (updateError) {
-        setError(updateError.message);
-        setLoading(false);
         return;
+      }
+
+      // Automatically enroll in any invited sites
+      if (userEmail) {
+        await enrollInInvitedSites(userEmail);
       }
 
       // Success! Redirect to the app
@@ -152,6 +155,46 @@ export default function AcceptInvitePage() {
       console.error('Error setting password:', err);
       setError('Failed to set password. Please try again.');
       setLoading(false);
+    }
+  };
+
+  const enrollInInvitedSites = async (email: string) => {
+    try {
+      const supabase = await createBrowserClient();
+      if (!supabase) return;
+
+      // 1. Fetch pending invites for this email
+      const { data: invites, error: inviteError } = await supabase
+        .from('xxiv_site_invites')
+        .select('site_id, id')
+        .eq('email', email)
+        .eq('status', 'pending');
+
+      if (inviteError || !invites || invites.length === 0) return;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 2. Add to member table for each site
+      for (const invite of invites) {
+        const { error: memberError } = await supabase
+          .from('xxiv_site_members')
+          .upsert({
+            site_id: invite.site_id,
+            user_id: user.id,
+            role: 'collaborator'
+          }, { onConflict: 'site_id, user_id' });
+
+        if (!memberError) {
+          // 3. Update invite status to accepted
+          await supabase
+            .from('xxiv_site_invites')
+            .update({ status: 'accepted' })
+            .eq('id', invite.id);
+        }
+      }
+    } catch (err) {
+      console.error('Error during site enrollment:', err);
     }
   };
 

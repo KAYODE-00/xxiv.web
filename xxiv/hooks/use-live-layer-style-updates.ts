@@ -54,6 +54,9 @@ export function useLiveLayerStyleUpdates(): UseLiveLayerStyleUpdatesReturn {
           xxivCollaborationSiteId,
           user.id,
         );
+        
+        if (!channelName) return;
+        
         const channel = supabase.channel(channelName);
 
         // Listen for style events

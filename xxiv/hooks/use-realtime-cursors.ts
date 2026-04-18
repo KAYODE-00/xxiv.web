@@ -109,7 +109,7 @@ export const useRealtimeCursors = ({
   // Get collaboration state
   const { updateUser, setConnectionStatus, setCurrentUser } = useCollaborationPresenceStore()
   const { user } = useAuthStore()
-  const { selectedLayerId } = useEditorStore()
+  const { selectedLayerId, xxivCollaborationSiteId } = useEditorStore()
   
   // Ref to avoid stale closures and prevent channel reinitialization on user object reference changes
   const userRef = useRef(user)
@@ -152,7 +152,8 @@ export const useRealtimeCursors = ({
           color: color,
           cursor: { x: clientX, y: clientY },
           selected_layer_id: selectedLayerId,
-          last_active: Date.now()
+          last_active: Date.now(),
+          xxiv_site_id: xxivCollaborationSiteId,
         })
       }
 
@@ -198,6 +199,7 @@ export const useRealtimeCursors = ({
 
   useEffect(() => {
     const initializeChannel = async () => {
+      if (!roomName) return;
       const supabaseClient = await getSupabaseClient();
       const channel = supabaseClient.channel(roomName)
 
@@ -299,7 +301,8 @@ export const useRealtimeCursors = ({
               name: username,
               color: color,
               avatarUrl: avatarUrl,
-              lockedLayerId: selectedLayerId || null
+              lockedLayerId: selectedLayerId || null,
+              xxiv_site_id: xxivCollaborationSiteId,
             })
             channelRef.current = channel
             setConnectionStatus(true)

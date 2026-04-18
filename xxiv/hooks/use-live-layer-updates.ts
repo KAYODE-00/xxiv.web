@@ -11,6 +11,7 @@ import { usePagesStore, markPageMcpSynced } from '../stores/usePagesStore';
 import { useEditorStore } from '../stores/useEditorStore';
 import { createClient } from '@/lib/supabase-browser';
 import { debounce } from '../lib/collaboration-utils';
+import { scopedCollaborationChannel } from '@/lib/xxiv/realtime-namespace';
 import type { Layer, LayerUpdate } from '../types';
 
 // Helper function to find layer in draft
@@ -41,6 +42,7 @@ export function useLiveLayerUpdates(
   const { updateLayer, draftsByPageId } = usePagesStore();
   const updateUser = useCollaborationPresenceStore((state) => state.updateUser);
   const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
+  const xxivCollaborationSiteId = useEditorStore((state) => state.xxivCollaborationSiteId);
 
   const channelRef = useRef<any>(null);
   const isReceivingUpdates = useRef(false);
@@ -88,7 +90,15 @@ export function useLiveLayerUpdates(
     const initializeChannel = async () => {
       try {
         const supabase = await createClient();
-        const channel = supabase.channel(`page:${pageId}:updates`);
+        const channelName = scopedCollaborationChannel(
+          `page:${pageId}:updates`,
+          xxivCollaborationSiteId,
+          user.id
+        );
+        
+        if (!channelName) return;
+        
+        const channel = supabase.channel(channelName);
 
         // Listen for layer updates
         channel.on('broadcast', { event: 'layer_update' }, (payload) => {

@@ -891,6 +891,7 @@ export interface CollaborationUser {
   is_editing: boolean; // Typing/editing indicator
   last_active: number;
   page_id: string;
+  xxiv_site_id?: string | null;
 }
 
 // Legacy type - use ResourceLock from useCollaborationPresenceStore instead

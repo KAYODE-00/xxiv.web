@@ -82,6 +82,9 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
           xxivCollaborationSiteId,
           user.id,
         );
+        
+        if (!channelName) return;
+        
         const channel = supabase.channel(channelName);
 
         // Listen for page updates

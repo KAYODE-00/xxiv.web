@@ -67,6 +67,9 @@ export function useLiveCollectionUpdates(): UseLiveCollectionUpdatesReturn {
           xxivCollaborationSiteId,
           user.id,
         );
+        
+        if (!channelName) return;
+        
         const channel = supabase.channel(channelName);
 
         // Listen for collection events

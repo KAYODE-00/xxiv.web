@@ -12,6 +12,7 @@ import { useCollaborationPresenceStore } from '@/stores/useCollaborationPresence
 import { getUserInitials, getUserStatus } from '@/lib/collaboration-utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { useEditorStore } from '@/stores/useEditorStore';
 import type { CollaborationUser } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -28,6 +29,7 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
   // Use targeted selectors to avoid re-renders on unrelated state changes
   const users = useCollaborationPresenceStore((state) => state.users);
   const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
+  const xxivCollaborationSiteId = useEditorStore((state) => state.xxivCollaborationSiteId);
   const [isOpen, setIsOpen] = useState(false);
 
   // Close popover when clicking on canvas (iframe clicks don't bubble to parent)
@@ -46,10 +48,12 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
   const activeUsers = useMemo(() => {
     const now = Date.now();
     const ACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
-    return Object.values(users).filter(user =>
-      user.last_active && (now - user.last_active) < ACTIVE_THRESHOLD
-    );
-  }, [users]);
+    return Object.values(users).filter(user => {
+      const isRecent = user.last_active && (now - user.last_active) < ACTIVE_THRESHOLD;
+      const isSameSite = user.xxiv_site_id === xxivCollaborationSiteId;
+      return isRecent && isSameSite;
+    });
+  }, [users, xxivCollaborationSiteId]);
 
   const displayUsers = useMemo(() => activeUsers.slice(0, 5), [activeUsers]);
   const hasMoreUsers = activeUsers.length > 5;
