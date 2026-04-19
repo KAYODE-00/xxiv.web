@@ -41,7 +41,7 @@ export async function getUserSites() {
   if (collabSiteIds.length > 0) {
     const { data: collabData, error: collabError } = await supabase
       .from('xxiv_sites')
-      .select('*, owner:user_id(email)')
+      .select('*')
       .in('id', collabSiteIds)
       .order('created_at', { ascending: false });
     
@@ -49,10 +49,68 @@ export async function getUserSites() {
     collaborative = collabData || [];
   }
 
+  // 3. Fetch pending invites for user's email
+  const { data: pendingInvites, error: inviteError } = await supabase
+    .from('xxiv_site_invites')
+    .select('*, site:site_id(name, thumbnail_url)')
+    .eq('email', user.email)
+    .eq('status', 'pending');
+
+  if (inviteError) {
+    console.error('[getUserSites] Invite error:', inviteError);
+    throw inviteError;
+  }
+
   return {
     owned: owned || [],
-    collaborative: collaborative
+    collaborative: collaborative,
+    pendingInvites: pendingInvites || []
   };
+}
+
+export async function respondToInvite(inviteId: string, accept: boolean) {
+  const user = await requireAuthUser();
+  const supabase = await createDashboardClient();
+  const admin = await getSupabaseAdmin();
+
+  if (!admin) throw new Error('Supabase admin not configured');
+
+  // 1. Get invite details using user's client to verify they can actually see this invite
+  // RLS on xxiv_site_invites ensures they can only see invites matching their email.
+  const { data: invite, error: inviteError } = await supabase
+    .from('xxiv_site_invites')
+    .select('site_id, email')
+    .eq('id', inviteId)
+    .single();
+
+  if (inviteError || !invite) throw new Error('Invite not found or access denied');
+
+  if (accept) {
+    // 2. Add to members using ADMIN client to bypass RLS (since user is not yet a member)
+    const { error: memberError } = await admin
+      .from('xxiv_site_members')
+      .upsert({
+        site_id: invite.site_id,
+        user_id: user.id,
+        role: 'collaborator'
+      }, { onConflict: 'site_id, user_id' });
+
+    if (memberError) throw memberError;
+
+    // 3. Update invite status using ADMIN
+    await admin
+      .from('xxiv_site_invites')
+      .update({ status: 'accepted' })
+      .eq('id', inviteId);
+  } else {
+    // Just mark as ignored using ADMIN
+    await admin
+      .from('xxiv_site_invites')
+      .update({ status: 'ignored' })
+      .eq('id', inviteId);
+  }
+
+  revalidatePath('/dashboard');
 }
 
 export async function getSiteById(siteId: string) {

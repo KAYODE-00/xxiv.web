@@ -126,6 +126,9 @@ export default function HeaderBar({
     return 'dark';
   });
   const [baseUrl, setBaseUrl] = useState<string>('');
+
+  // Use the store value which is reliably populated by the builder initialization
+  const storeXxivSiteId = useEditorStore((state) => state.xxivCollaborationSiteId);
   const [xxivSiteId, setXxivSiteId] = useState<string | null>(null);
   const [xxivLiveUrl, setXxivLiveUrl] = useState<string | null>(null);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
@@ -133,8 +136,8 @@ export default function HeaderBar({
   // Get current host after mount
   useEffect(() => {
     setBaseUrl(window.location.protocol + '//' + window.location.host);
-    setXxivSiteId(getXxivSiteIdFromBrowser());
-  }, []);
+    setXxivSiteId(storeXxivSiteId || getXxivSiteIdFromBrowser());
+  }, [storeXxivSiteId]);
 
   useEffect(() => {
     if (!xxivSiteId) return;
@@ -167,11 +170,21 @@ export default function HeaderBar({
     return selectedLocaleId ? translations[selectedLocaleId] : undefined;
   }, [selectedLocaleId, translations]);
 
+  // Strip XXIV suffix from slugs for cleaner URLs in builder/preview
+  // Uses regex to strip any 8-character hex code, covering pages imported/duplicated from other sites.
+  const stripSuffix = (slug: string) => {
+    if (!slug) return slug;
+    return slug.replace(/-[a-f0-9]{8}(?=\/|$)/gi, '');
+  };
+
   // Build full page path including folders (memoized for performance)
   const fullPagePath = useMemo(() => {
     if (!currentPage) return '/';
-    return buildSlugPath(currentPage, folders, 'page');
-  }, [currentPage, folders]);
+    // Clean slug for display icon/labels
+    const pageWithCleanSlug = { ...currentPage, slug: stripSuffix(currentPage.slug) } as Page;
+    const cleanFolders = folders.map(f => ({ ...f, slug: stripSuffix(f.slug) }));
+    return buildSlugPath(pageWithCleanSlug, cleanFolders, 'page');
+  }, [currentPage, folders, xxivSiteId]);
 
   // Build localized page path with translated slugs
   const localizedPagePath = useMemo(() => {
@@ -180,14 +193,18 @@ export default function HeaderBar({
 
     if (!pageToUse) return '/';
 
+    // Clean slug for the page to use
+    const cleanPageToUse = { ...pageToUse, slug: stripSuffix(pageToUse.slug) } as Page;
+    const cleanFolders = folders.map(f => ({ ...f, slug: stripSuffix(f.slug) }));
+
     return buildLocalizedSlugPath(
-      pageToUse,
-      folders,
+      cleanPageToUse,
+      cleanFolders,
       'page',
       selectedLocale,
       localeTranslations
     );
-  }, [currentPage, isSettingsRoute, storePages, folders, selectedLocale, localeTranslations]);
+  }, [currentPage, isSettingsRoute, storePages, folders, selectedLocale, localeTranslations, xxivSiteId]);
 
   // Get collection item slug value for dynamic pages (with translation support)
   const collectionItemSlug = useMemo(() => {
@@ -246,14 +263,16 @@ export default function HeaderBar({
     }
 
     // For dynamic pages, use localized dynamic URL builder
-    const path = currentPage.is_dynamic
-      ? buildLocalizedDynamicPageUrl(currentPage, folders, collectionItemSlug, selectedLocale, localeTranslations)
+    const rawPath = currentPage.is_dynamic
+      ? buildLocalizedDynamicPageUrl(currentPage as Page, folders, collectionItemSlug, selectedLocale, localeTranslations)
       : localizedPagePath;
 
-    const siteId = typeof window !== 'undefined' ? getXxivSiteIdFromBrowser() : null;
-    const qs = siteId ? `?xxiv_site_id=${encodeURIComponent(siteId)}` : '';
+    // Globally strip any suffix leaks from the finalized path
+    const path = stripSuffix(rawPath);
+
+    const qs = xxivSiteId ? `?xxiv_site_id=${encodeURIComponent(xxivSiteId)}` : '';
     return `/xxiv/preview${path === '/' ? '' : path}${qs}`;
-  }, [currentPage, folders, localizedPagePath, collectionItemSlug, selectedLocale, localeTranslations]);
+  }, [currentPage, folders, localizedPagePath, collectionItemSlug, selectedLocale, localeTranslations, xxivSiteId]);
 
   // Build published URL (for the link in the center)
   const publishedUrl = useMemo(() => {
@@ -326,325 +345,325 @@ export default function HeaderBar({
 
   return (
     <>
-    <header className="h-14 bg-background border-b grid grid-cols-3 items-center px-4">
-      {/* Left: Logo & Navigation */}
-      <div className="flex items-center gap-2">
+      <header className="h-14 bg-background border-b grid grid-cols-3 items-center px-4">
+        {/* Left: Logo & Navigation */}
+        <div className="flex items-center gap-2">
 
-        {/* User Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="secondary" size="sm"
-              className="size-8!"
-            >
-              <div className="dark:text-white text-secondary-foreground">
-                <svg
-                  className="size-3.5 fill-current" viewBox="0 0 24 24"
-                  version="1.1" xmlns="http://www.w3.org/2000/svg"
-                >
-                  <g
-                    id="Symbols" stroke="none"
-                    strokeWidth="1" fill="none"
-                    fillRule="evenodd"
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="secondary" size="sm"
+                className="size-8!"
+              >
+                <div className="dark:text-white text-secondary-foreground">
+                  <svg
+                    className="size-3.5 fill-current" viewBox="0 0 24 24"
+                    version="1.1" xmlns="http://www.w3.org/2000/svg"
                   >
-                    <g id="Sidebar" transform="translate(-30.000000, -30.000000)">
-                      <g id="Xxiv">
-                        <g transform="translate(30.000000, 30.000000)">
-                          <rect
-                            id="Rectangle" x="0"
-                            y="0" width="24"
-                            height="24"
-                          />
-                          <path
-                            id="CurrentFill" d="M11.4241533,0 L11.4241533,5.85877951 L6.024,8.978 L12.6155735,12.7868008 L10.951,13.749 L23.0465401,6.75101349 L23.0465401,12.6152717 L3.39516096,23.9856666 L3.3703726,24 L3.34318129,23.9827156 L0.96,22.4713365 L0.96,16.7616508 L3.36417551,18.1393242 L7.476,15.76 L0.96,11.9090099 L0.96,6.05375516 L11.4241533,0 Z"
-                            className="fill-current"
-                          />
+                    <g
+                      id="Symbols" stroke="none"
+                      strokeWidth="1" fill="none"
+                      fillRule="evenodd"
+                    >
+                      <g id="Sidebar" transform="translate(-30.000000, -30.000000)">
+                        <g id="Xxiv">
+                          <g transform="translate(30.000000, 30.000000)">
+                            <rect
+                              id="Rectangle" x="0"
+                              y="0" width="24"
+                              height="24"
+                            />
+                            <path
+                              id="CurrentFill" d="M11.4241533,0 L11.4241533,5.85877951 L6.024,8.978 L12.6155735,12.7868008 L10.951,13.749 L23.0465401,6.75101349 L23.0465401,12.6152717 L3.39516096,23.9856666 L3.3703726,24 L3.34318129,23.9827156 L0.96,22.4713365 L0.96,16.7616508 L3.36417551,18.1393242 L7.476,15.76 L0.96,11.9090099 L0.96,6.05375516 L11.4241533,0 Z"
+                              className="fill-current"
+                            />
+                          </g>
                         </g>
                       </g>
                     </g>
-                  </g>
-                </svg>
-              </div>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {isCloudVersion() && (
-              <>
-                <DropdownMenuItem asChild>
-                  <a href="https://dashboard.xxiv.cloud/dashboard">
-                    Dashboard
-                  </a>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            <DropdownMenuItem
-              onClick={() => router.push('/xxiv/settings/general')}
-            >
-              Settings
-            </DropdownMenuItem>
+                  </svg>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {isCloudVersion() && (
+                <>
+                  <DropdownMenuItem asChild>
+                    <a href="https://dashboard.xxiv.cloud/dashboard">
+                      Dashboard
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem
+                onClick={() => router.push('/xxiv/settings/general')}
+              >
+                Settings
+              </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onClick={() => openFileManager()}
-            >
-              File manager
-            </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => openFileManager()}
+              >
+                File manager
+              </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onClick={() => router.push('/xxiv/integrations/apps')}
-            >
-              Integrations
-            </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => router.push('/xxiv/integrations/apps')}
+              >
+                Integrations
+              </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onClick={() => setShowTransferDialog(true)}
-            >
-              Backup &amp; Restore
-            </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setShowTransferDialog(true)}
+              >
+                Backup &amp; Restore
+              </DropdownMenuItem>
 
-            <DropdownMenuSeparator />
+              <DropdownMenuSeparator />
 
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                Theme
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuRadioGroup value={theme} onValueChange={(value: string) => setTheme(value as 'system' | 'light' | 'dark')}>
-                  <DropdownMenuRadioItem value="system">
-                    System
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="light">
-                    Light
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="dark">
-                    Dark
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  Theme
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup value={theme} onValueChange={(value: string) => setTheme(value as 'system' | 'light' | 'dark')}>
+                    <DropdownMenuRadioItem value="system">
+                      System
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="light">
+                      Light
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark">
+                      Dark
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
 
-            <DropdownMenuItem
-              onClick={() => setKeyboardShortcutsOpen(true)}
-            >
-              Keyboard shortcuts
-            </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setKeyboardShortcutsOpen(true)}
+              >
+                Keyboard shortcuts
+              </DropdownMenuItem>
 
-            <DropdownMenuSeparator />
+              <DropdownMenuSeparator />
 
-            <DropdownMenuItem
-              onClick={() => router.push('/xxiv/profile')}
-            >
-              My profile
-            </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => router.push('/xxiv/profile')}
+              >
+                My profile
+              </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onClick={async () => {
-                await signOut();
+              <DropdownMenuItem
+                onClick={async () => {
+                  await signOut();
+                }}
+              >
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="flex gap-1">
+            <Button
+              variant={activeNavButton === 'design' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => {
+                setOptimisticNav('design');
+                setActiveSidebarTab('layers');
+                // Restore last design URL if available
+                if (lastDesignUrl) {
+                  router.push(lastDesignUrl);
+                } else {
+                  const targetPageId = storeCurrentPageId || findHomepage(storePages)?.id || storePages[0]?.id;
+                  if (targetPageId) {
+                    navigateToLayers(targetPageId);
+                  }
+                }
               }}
             >
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <div className="flex gap-1">
-          <Button
-            variant={activeNavButton === 'design' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => {
-              setOptimisticNav('design');
-              setActiveSidebarTab('layers');
-              // Restore last design URL if available
-              if (lastDesignUrl) {
-                router.push(lastDesignUrl);
-              } else {
-                const targetPageId = storeCurrentPageId || findHomepage(storePages)?.id || storePages[0]?.id;
-                if (targetPageId) {
-                  navigateToLayers(targetPageId);
-                }
-              }
-            }}
-          >
-            <Icon name="cursor-default" />
-            Design
-          </Button>
-          <Button
-            variant={activeNavButton === 'cms' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => {
-              // Save current design URL before navigating away
-              const isDesignRoute = routeType === 'layers' || routeType === 'page' || routeType === 'component';
-              if (isDesignRoute) {
-                setLastDesignUrl(window.location.pathname + window.location.search);
-              }
-              setOptimisticNav('cms');
-              setActiveSidebarTab('cms');
-              // Navigate to last selected or first available collection
-              const targetCollectionId = storeSelectedCollectionId || collections[0]?.id;
-              if (targetCollectionId) {
-                setSelectedCollectionId(targetCollectionId);
-                navigateToCollection(targetCollectionId);
-              } else {
-                navigateToCollections();
-              }
-            }}
-          >
-            <Icon name="database" />
-            CMS
-          </Button>
-          <Button
-            variant={activeNavButton === 'forms' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => {
-              // Save current design URL before navigating away
-              const isDesignRoute = routeType === 'layers' || routeType === 'page' || routeType === 'component';
-              if (isDesignRoute) {
-                setLastDesignUrl(window.location.pathname + window.location.search);
-              }
-              setOptimisticNav('forms');
-              router.push('/xxiv/forms');
-            }}
-          >
-            <Icon name="form" />
-            Forms
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex gap-1.5 items-center justify-center">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="xs" variant="ghost">
-              <Icon name="globe" />
-              {selectedLocale ? selectedLocale.code.toUpperCase() : 'EN'}
+              <Icon name="cursor-default" />
+              Design
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuRadioGroup
-              value={selectedLocaleId || ''}
-              onValueChange={(value: string) => setSelectedLocaleId(value)}
+            <Button
+              variant={activeNavButton === 'cms' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => {
+                // Save current design URL before navigating away
+                const isDesignRoute = routeType === 'layers' || routeType === 'page' || routeType === 'component';
+                if (isDesignRoute) {
+                  setLastDesignUrl(window.location.pathname + window.location.search);
+                }
+                setOptimisticNav('cms');
+                setActiveSidebarTab('cms');
+                // Navigate to last selected or first available collection
+                const targetCollectionId = storeSelectedCollectionId || collections[0]?.id;
+                if (targetCollectionId) {
+                  setSelectedCollectionId(targetCollectionId);
+                  navigateToCollection(targetCollectionId);
+                } else {
+                  navigateToCollections();
+                }
+              }}
             >
-              {locales.map((locale: any) => (
-                <DropdownMenuRadioItem key={locale.id} value={locale.id}>
-                  <span className="flex items-center gap-3">
-                    {locale.label}
-                    {locale.is_default && (
-                      <Badge variant="secondary" className="text-[10px] mr-5">
-                        Default
-                      </Badge>
-                    )}
-                  </span>
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            {!pathname?.startsWith('/xxiv/localization') && (
+              <Icon name="database" />
+              CMS
+            </Button>
+            <Button
+              variant={activeNavButton === 'forms' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => {
+                // Save current design URL before navigating away
+                const isDesignRoute = routeType === 'layers' || routeType === 'page' || routeType === 'component';
+                if (isDesignRoute) {
+                  setLastDesignUrl(window.location.pathname + window.location.search);
+                }
+                setOptimisticNav('forms');
+                router.push('/xxiv/forms');
+              }}
+            >
+              <Icon name="form" />
+              Forms
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex gap-1.5 items-center justify-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="xs" variant="ghost">
+                <Icon name="globe" />
+                {selectedLocale ? selectedLocale.code.toUpperCase() : 'EN'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuRadioGroup
+                value={selectedLocaleId || ''}
+                onValueChange={(value: string) => setSelectedLocaleId(value)}
+              >
+                {locales.map((locale: any) => (
+                  <DropdownMenuRadioItem key={locale.id} value={locale.id}>
+                    <span className="flex items-center gap-3">
+                      {locale.label}
+                      {locale.is_default && (
+                        <Badge variant="secondary" className="text-[10px] mr-5">
+                          Default
+                        </Badge>
+                      )}
+                    </span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              {!pathname?.startsWith('/xxiv/localization') && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => router.push('/xxiv/localization')}
+                  >
+                    Manage locales
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="h-5">
+            <Separator orientation="vertical" />
+          </div>
+
+          <Button
+            size="xs"
+            variant="ghost"
+            asChild
+          >
+            <a
+              href={liveSiteUrl} target="_blank"
+              rel="noopener noreferrer"
+            >
+              {liveSiteLabel}
+            </a>
+          </Button>
+
+
+        </div>
+
+        {/* Right: User & Actions */}
+        <div className="flex items-center justify-end gap-2">
+          {/* Active Users */}
+          <ActiveUsersInHeader />
+
+          {/* Invite User */}
+          <InviteUserButton />
+
+          {/* Save Status Indicator */}
+          <div className="flex items-center justify-end w-16 text-xs text-zinc-500 dark:text-white/50">
+            {isSaving ? (
               <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => router.push('/xxiv/localization')}
-                >
-                  Manage locales
-                </DropdownMenuItem>
+                <span>Saving</span>
+              </>
+            ) : hasUnsavedChanges ? (
+              <>
+                <span>Unsaved</span>
+              </>
+            ) : lastSaved ? (
+              <>
+                <span>Saved</span>
+              </>
+            ) : (
+              <>
+                <span>Ready</span>
               </>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
 
-        <div className="h-5">
-          <Separator orientation="vertical" />
-        </div>
-
-        <Button
-          size="xs"
-          variant="ghost"
-          asChild
-        >
-          <a
-            href={liveSiteUrl} target="_blank"
-            rel="noopener noreferrer"
-          >
-            {liveSiteLabel}
-          </a>
-        </Button>
-
-
-      </div>
-
-      {/* Right: User & Actions */}
-      <div className="flex items-center justify-end gap-2">
-        {/* Active Users */}
-        <ActiveUsersInHeader />
-
-        {/* Invite User */}
-        <InviteUserButton />
-
-        {/* Save Status Indicator */}
-        <div className="flex items-center justify-end w-16 text-xs text-zinc-500 dark:text-white/50">
-          {isSaving ? (
-            <>
-              <span>Saving</span>
-            </>
-          ) : hasUnsavedChanges ? (
-            <>
-              <span>Unsaved</span>
-            </>
-          ) : lastSaved ? (
-            <>
-              <span>Saved</span>
-            </>
-          ) : (
-            <>
-              <span>Ready</span>
-            </>
+          {/* Preview button */}
+          {xxivSiteId && (
+            <AiBuilderButton
+              projectId={xxivSiteId}
+              className="h-8 rounded-lg border border-white/10 bg-white/5 px-3 text-xs text-white hover:bg-white/10"
+            />
           )}
-        </div>
 
-        {/* Preview button */}
-        {xxivSiteId && (
-          <AiBuilderButton
-            projectId={xxivSiteId}
-            className="h-8 rounded-lg border border-white/10 bg-white/5 px-3 text-xs text-white hover:bg-white/10"
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              if (isPreviewMode) {
+                // Exit preview mode
+                setPreviewMode(false);
+                updateQueryParams({ preview: undefined });
+              } else {
+                // Enter preview mode
+                setPreviewMode(true);
+                updateQueryParams({ preview: 'true' });
+              }
+            }}
+            disabled={!currentPage || isSaving}
+            className={isPreviewMode ? 'bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90' : ''}
+          >
+            <Icon name="preview" />
+          </Button>
+
+          <PublishPopover
+            isPublishing={isPublishing}
+            setIsPublishing={setIsPublishing}
+            baseUrl={baseUrl}
+            publishedUrl={publishedUrl}
+            onPublishSuccess={onPublishSuccess}
+            xxivSiteId={xxivSiteId}
+            xxivLiveUrl={xxivLiveUrl}
+            onXxivPublishSuccess={setXxivLiveUrl}
           />
-        )}
 
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            if (isPreviewMode) {
-              // Exit preview mode
-              setPreviewMode(false);
-              updateQueryParams({ preview: undefined });
-            } else {
-              // Enter preview mode
-              setPreviewMode(true);
-              updateQueryParams({ preview: 'true' });
-            }
-          }}
-          disabled={!currentPage || isSaving}
-          className={isPreviewMode ? 'bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90' : ''}
-        >
-          <Icon name="preview" />
-        </Button>
+        </div>
+      </header>
 
-        <PublishPopover
-          isPublishing={isPublishing}
-          setIsPublishing={setIsPublishing}
-          baseUrl={baseUrl}
-          publishedUrl={publishedUrl}
-          onPublishSuccess={onPublishSuccess}
-          xxivSiteId={xxivSiteId}
-          xxivLiveUrl={xxivLiveUrl}
-          onXxivPublishSuccess={setXxivLiveUrl}
-        />
-
-      </div>
-    </header>
-
-    <BackupRestoreDialog
-      open={showTransferDialog}
-      onOpenChange={setShowTransferDialog}
-    />
+      <BackupRestoreDialog
+        open={showTransferDialog}
+        onOpenChange={setShowTransferDialog}
+      />
     </>
   );
 }

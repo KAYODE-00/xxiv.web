@@ -11,7 +11,7 @@ export interface SettingsNavItem {
 
 export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { id: 'general', label: 'General', path: '/xxiv/settings/general' },
-  { id: 'users', label: 'Users', path: '/xxiv/settings/users' },
+  { id: 'users', label: 'Invites', path: '/xxiv/settings/users' },
   { id: 'redirects', label: 'Redirects', path: '/xxiv/settings/redirects' },
   { id: 'email', label: 'Email', path: '/xxiv/settings/email' },
 ];

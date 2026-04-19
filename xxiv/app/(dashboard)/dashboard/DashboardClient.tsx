@@ -38,10 +38,15 @@ export default function DashboardClient({
   initialSites,
 }: {
   user: { id: string; email?: string | null };
-  initialSites: { owned: SiteRow[]; collaborative: SiteRow[] };
+  initialSites: { 
+    owned: SiteRow[]; 
+    collaborative: SiteRow[];
+    pendingInvites: any[];
+  };
 }) {
   const [ownedSites, setOwnedSites] = useState<SiteRow[]>(initialSites?.owned || []);
   const [collabSites, setCollabSites] = useState<SiteRow[]>(initialSites?.collaborative || []);
+  const [pendingInvites, setPendingInvites] = useState<any[]>(initialSites?.pendingInvites || []);
   const [createOpen, setCreateOpen] = useState(false);
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<SiteRow | null>(null);
@@ -83,6 +88,23 @@ export default function DashboardClient({
     setMenuOpenFor(null);
     startTransition(async () => {
       await openSiteEditor(siteId);
+    });
+  }
+
+  async function handleRespondToInvite(inviteId: string, accept: boolean) {
+    const { respondToInvite } = await import('../actions/sites');
+    
+    // Optimistic UI
+    setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
+    
+    startTransition(async () => {
+      try {
+        await respondToInvite(inviteId, accept);
+      } catch (e) {
+        // Rollback on error
+        setPendingInvites(initialSites.pendingInvites);
+        setError(e instanceof Error ? e.message : 'Failed to respond to invite');
+      }
     });
   }
 
@@ -171,6 +193,44 @@ export default function DashboardClient({
             }}
           >
             {error}
+          </div>
+        )}
+
+        {/* Pending Invitations Section */}
+        {pendingInvites.length > 0 && (
+          <div style={{ marginBottom: 40, background: 'rgba(255,255,255,0.03)', border: '1px solid #1a1a1a', borderRadius: 16, padding: 24 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Project Invitations</div>
+            <div style={{ fontSize: 13, color: '#888', marginBottom: 20 }}>You have been invited to collaborate on these projects.</div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+              {pendingInvites.map((invite) => (
+                <div key={invite.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 8, background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700 }}>
+                      {invite.site?.name?.[0]?.toUpperCase() || 'P'}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>{invite.site?.name}</div>
+                      <div style={{ fontSize: 11, color: '#666' }}>Project invitation</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button 
+                      onClick={() => handleRespondToInvite(invite.id, true)}
+                      style={{ padding: '6px 12px', background: '#fff', color: '#000', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      Accept
+                    </button>
+                    <button 
+                      onClick={() => handleRespondToInvite(invite.id, false)}
+                      style={{ padding: '6px 12px', background: 'transparent', color: '#888', border: '1px solid #1a1a1a', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
+                    >
+                      Ignore
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

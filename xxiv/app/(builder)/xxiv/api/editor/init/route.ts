@@ -40,12 +40,8 @@ function pageIsGlobalErrorPage(page: any, siteId: string) {
 }
 
 function stripXxivSlugSuffix(slug: string, siteId: string): string {
-  const suffix = `-${siteId.slice(0, 8)}`;
   if (typeof slug !== 'string') return slug as any;
-  if (slug.endsWith(suffix)) {
-    return slug.slice(0, -suffix.length);
-  }
-  return slug;
+  return slug.replace(/-[a-f0-9]{8}$/i, '');
 }
 
 function normalizeXxivPageSlugForResponse(page: any, siteId: string): any {

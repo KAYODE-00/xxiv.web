@@ -379,6 +379,11 @@ export function resolveCollectionLinkValue(
       href = buildLocalizedSlugPath(page, folders, 'page', locale, translations || undefined);
     }
 
+    // Globally clean internal DB suffixes (covers imported, cloned, and translated pages)
+    if (href) {
+      href = href.replace(/-[a-f0-9]{8}(?=\/|$)/gi, '');
+    }
+
     // Prefix with /xxiv/preview in preview mode
     if (isPreview && href) {
       href = `/xxiv/preview${href}`;
@@ -483,6 +488,11 @@ export function generateLinkHref(
           } else {
             // Static page or dynamic page without specific item
             href = buildLocalizedSlugPath(page, folders, 'page', locale, translations || undefined);
+          }
+
+          // Globally clean internal DB suffixes (covers imported, cloned, and translated pages)
+          if (href) {
+            href = href.replace(/-[a-f0-9]{8}(?=\/|$)/gi, '');
           }
 
           // Prefix with /xxiv/preview in preview mode

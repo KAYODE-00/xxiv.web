@@ -339,9 +339,8 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
     }
 
     const stripXxivSuffix = (slug: string) => {
-      if (!xxivSiteId || typeof slug !== 'string') return slug;
-      const suffix = `-${xxivSiteId.slice(0, 8)}`;
-      return slug.endsWith(suffix) ? slug.slice(0, -suffix.length) : slug;
+      if (!slug || typeof slug !== 'string') return slug;
+      return slug.replace(/-[a-f0-9]{8}$/i, '');
     };
 
     const targetPath = pathWithoutLocale;
@@ -1085,7 +1084,7 @@ async function injectCollectionData(
       const restrictiveBlockTags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'a', 'button'];
       const currentTag = layer.settings?.tag || layer.name || 'div';
       if (restrictiveBlockTags.includes(currentTag) &&
-          hasBlockElementsInInlineVariables(content, enhancedValues)) {
+        hasBlockElementsInInlineVariables(content, enhancedValues)) {
         updates.settings = {
           ...layer.settings,
           tag: 'div',
@@ -2823,7 +2822,7 @@ async function injectCollectionDataForHtml(
       const restrictiveBlockTags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'a', 'button'];
       const currentTag = layer.settings?.tag || layer.name || 'div';
       if (restrictiveBlockTags.includes(currentTag) &&
-          hasBlockElementsInInlineVariables(content, enhancedValues)) {
+        hasBlockElementsInInlineVariables(content, enhancedValues)) {
         updates.settings = {
           ...layer.settings,
           tag: 'div',
@@ -3810,7 +3809,7 @@ export function layerToHtml(
 
                 // Handle special "current" keywords and reference field resolution
                 if (linkSettings.page.collection_item_id === 'current-page' ||
-                    linkSettings.page.collection_item_id === 'current-collection') {
+                  linkSettings.page.collection_item_id === 'current-collection') {
                   // Use the current collection item's slug (from effectiveCollectionItemId)
                   itemSlug = effectiveCollectionItemId ? collectionItemSlugs[effectiveCollectionItemId] : undefined;
                 } else if (linkSettings.page.collection_item_id.startsWith('ref-')) {

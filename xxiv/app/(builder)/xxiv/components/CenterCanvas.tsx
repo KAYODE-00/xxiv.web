@@ -641,6 +641,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const activeListItemIndex = useEditorStore((state) => state.activeListItemIndex);
   const elementPicker = useEditorStore((state) => state.elementPicker);
   const stopElementPicker = useEditorStore((state) => state.stopElementPicker);
+  const xxivCollaborationSiteId = useEditorStore((state) => state.xxivCollaborationSiteId);
   const assets = useAssetsStore((state) => state.assets);
 
   // Note: Canvas drag-and-drop state is handled by useCanvasDropDetection hook
@@ -968,7 +969,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
       scrollCanvasToLayerRef.current(selectedLayerId, true, true);
     }, 300);
     return () => clearTimeout(timeout);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewportMode]);
 
   // Track container dimensions for dynamic alignment
@@ -1372,8 +1373,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
       : currentDraft?.layers ?? null;
     const layer = source ? findLayerById(source as Layer[], richTextSheetLayerId) : null;
     setRichTextSheetValue(getRichTextValue(layer?.variables));
-  // Only re-derive when the sheet target layer changes, not on every draft update
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Only re-derive when the sheet target layer changes, not on every draft update
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [richTextSheetLayerId]);
 
   const handleRichTextSheetChange = useCallback((value: any) => {
@@ -1624,15 +1625,28 @@ const CenterCanvas = React.memo(function CenterCanvas({
       })()
       : null;
 
-    // Build localized path with translated slugs
-    const path = currentPage.is_dynamic
-      ? buildLocalizedDynamicPageUrl(currentPage, folders, collectionItemSlug, selectedLocale, localeTranslations)
-      : buildLocalizedSlugPath(currentPage, folders, 'page', selectedLocale, localeTranslations);
+    // Strip XXIV site ID suffix from slug for clean preview URLs
+    // Any 8-character hex code appended to a slug is an internal DB suffix.
+    const siteId = xxivCollaborationSiteId || (typeof window !== 'undefined' ? getXxivSiteIdFromBrowser() : null);
 
-    const siteId = typeof window !== 'undefined' ? getXxivSiteIdFromBrowser() : null;
+    // Helper to strip any DB suffix from any slug (covers imported/duplicated pages and translation leaks)
+    const stripSuffix = (slug: string) => {
+      if (!slug) return slug;
+      // Match 8-hex suffix either at the end of string or right before a URL slash
+      return slug.replace(/-[a-f0-9]{8}(?=\/|$)/gi, '');
+    };
+
+    // We build the path natively first...
+    const rawPath = currentPage.is_dynamic
+      ? buildLocalizedDynamicPageUrl(currentPage as Page, folders, collectionItemSlug, selectedLocale, localeTranslations)
+      : buildLocalizedSlugPath(currentPage as Page, folders, 'page', selectedLocale, localeTranslations);
+
+    // ...and guarantee all DB suffixes are globally stripped from the finalized localized path
+    const path = stripSuffix(rawPath);
+
     const qs = siteId ? `?xxiv_site_id=${encodeURIComponent(siteId)}` : '';
     return `/xxiv/preview${path === '/' ? '' : path}${qs}`;
-  }, [currentPage, folders, currentPageCollectionItemId, collectionItemsFromStore, collectionFieldsFromStore, selectedLocale, localeTranslations]);
+  }, [currentPage, folders, currentPageCollectionItemId, collectionItemsFromStore, collectionFieldsFromStore, selectedLocale, localeTranslations, xxivCollaborationSiteId]);
 
   // Reload preview iframe every time preview mode opens (covers all change sources:
   // layer edits, component updates, CMS, layer styles, color variables, etc.)
@@ -2241,48 +2255,48 @@ const CenterCanvas = React.memo(function CenterCanvas({
               minHeight: '100%',
             }}
           >
+            <div
+              style={{
+                // Width: exact scaled size, min 100% to fill viewport horizontally
+                width: `${effectiveCanvasWidth * (zoom / 100) + CANVAS_PADDING}px`,
+                minWidth: '100%',
+                // Height: exact viewport height when centered, scaled size when top-aligned
+                height: shouldCenter
+                  ? `${containerHeight}px`  // Use actual viewport height
+                  : `${finalIframeHeight * (zoom / 100) + CANVAS_PADDING}px`,
+                display: 'flex',
+                // Always use flex-start - we'll handle centering via padding
+                alignItems: 'flex-start',
+                justifyContent: 'center', // Center horizontally
+                // Calculate padding: center based on VISUAL (scaled) height, or fixed border when top-aligned
+                paddingTop: shouldCenter
+                  ? `${Math.max(0, (containerHeight - finalIframeHeight * (zoom / 100)) / 2)}px`
+                  : `${CANVAS_BORDER}px`,
+                position: 'relative',
+              }}
+            >
               <div
+                className={editingComponentId ? 'relative' : 'bg-white shadow-3xl relative'}
                 style={{
-                  // Width: exact scaled size, min 100% to fill viewport horizontally
-                  width: `${effectiveCanvasWidth * (zoom / 100) + CANVAS_PADDING}px`,
-                  minWidth: '100%',
-                  // Height: exact viewport height when centered, scaled size when top-aligned
-                  height: shouldCenter
-                    ? `${containerHeight}px`  // Use actual viewport height
-                    : `${finalIframeHeight * (zoom / 100) + CANVAS_PADDING}px`,
-                  display: 'flex',
-                  // Always use flex-start - we'll handle centering via padding
-                  alignItems: 'flex-start',
-                  justifyContent: 'center', // Center horizontally
-                  // Calculate padding: center based on VISUAL (scaled) height, or fixed border when top-aligned
-                  paddingTop: shouldCenter
-                    ? `${Math.max(0, (containerHeight - finalIframeHeight * (zoom / 100)) / 2)}px`
-                    : `${CANVAS_BORDER}px`,
-                  position: 'relative',
+                  zoom: zoom / 100,
+                  width: `${effectiveCanvasWidth}px`,
+                  height: `${finalIframeHeight}px`,
+                  flexShrink: 0, // Prevent shrinking - maintain fixed size
+                  // No transition to prevent shifts
+                  transition: 'none',
+                  // Clip overflow when canvas is smaller than iframe (component editing)
+                  overflow: editingComponentId ? 'hidden' : undefined,
                 }}
               >
+                {/* Inner wrapper: keep iframe at viewport width for natural content rendering */}
                 <div
-                  className={editingComponentId ? 'relative' : 'bg-white shadow-3xl relative'}
                   style={{
-                    zoom: zoom / 100,
-                    width: `${effectiveCanvasWidth}px`,
-                    height: `${finalIframeHeight}px`,
-                    flexShrink: 0, // Prevent shrinking - maintain fixed size
-                    // No transition to prevent shifts
-                    transition: 'none',
-                    // Clip overflow when canvas is smaller than iframe (component editing)
-                    overflow: editingComponentId ? 'hidden' : undefined,
+                    width: editingComponentId && effectiveCanvasWidth < viewportWidth
+                      ? `${viewportWidth}px`
+                      : '100%',
+                    height: '100%',
                   }}
                 >
-                  {/* Inner wrapper: keep iframe at viewport width for natural content rendering */}
-                  <div
-                    style={{
-                      width: editingComponentId && effectiveCanvasWidth < viewportWidth
-                        ? `${viewportWidth}px`
-                        : '100%',
-                      height: '100%',
-                    }}
-                  >
                   {/* Canvas for editor */}
                   {layers.length > 0 ? (
                     <>
@@ -2521,10 +2535,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
                       </div>
                     </div>
                   )}
-                  </div>
                 </div>
               </div>
             </div>
+          </div>
         </div>
 
       </div>

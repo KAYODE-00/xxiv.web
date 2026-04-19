@@ -203,15 +203,15 @@ export default function UsersSettingsPage() {
 
         {/* Page Header */}
         <header className="pt-8 pb-3">
-          <span className="text-base font-medium">Users</span>
+          <span className="text-base font-medium">Invites</span>
         </header>
 
-        {/* Invite User Section */}
+        {/* Invite Collaborator Section */}
         <div className="flex flex-col gap-6 bg-secondary/20 p-8 rounded-lg">
           <header>
-            <FieldLegend>Invite user</FieldLegend>
+            <FieldLegend>Invite collaborator</FieldLegend>
             <FieldDescription>
-              Send an invitation email to add a new user to this project.
+              Send an invitation email to add a new collaborator to this project.
             </FieldDescription>
           </header>
 
@@ -256,7 +256,7 @@ export default function UsersSettingsPage() {
 
         <div className="flex flex-col gap-6 bg-secondary/20 p-8 rounded-lg">
           <header>
-            <FieldLegend>Users</FieldLegend>
+            <FieldLegend>Collaborators</FieldLegend>
             <FieldDescription>
               Users who have access to this project.
             </FieldDescription>
