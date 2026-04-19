@@ -5,6 +5,9 @@ import { credentials } from '@/lib/credentials';
 import { parseSupabaseConfig } from '@/lib/supabase-config-parser';
 import type { SupabaseConfig } from '@/types';
 
+
+
+
 /**
  * GET /auth/callback
  *

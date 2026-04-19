@@ -164,7 +164,7 @@ export async function getTemplateById(id: string): Promise<XxivTemplate | null> 
   return getXxivTemplateById(id);
 }
 
-export async function cloneTemplateToUserSite(templateId: string, userId: string): Promise<CloneTemplateResult> {
+export async function cloneTemplateToUserSite(templateId: string, userId: string, siteName?: string): Promise<CloneTemplateResult> {
   const admin = await getSupabaseAdmin();
 
   if (!admin) {
@@ -186,7 +186,8 @@ export async function cloneTemplateToUserSite(templateId: string, userId: string
     templateLayers.map((entry) => [entry.template_page_id, entry])
   );
 
-  const site = await createXxivSiteRecord(userId, template.name);
+  const nameToUse = siteName?.trim() || template.name;
+  const site = await createXxivSiteRecord(userId, nameToUse);
   const pageIdMap = new Map<string, string>();
   const createdPages: Array<{ id: string; is_index: boolean; page_order: number }> = [];
 
