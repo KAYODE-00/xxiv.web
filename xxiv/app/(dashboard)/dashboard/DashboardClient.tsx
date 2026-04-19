@@ -175,7 +175,7 @@ export default function DashboardClient({
         )}
 
         {/* Stats row */}
-        {sites.length > 0 && (
+        {stats.total > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 22 }}>
             {[
               { label: 'Total Sites', value: stats.total },

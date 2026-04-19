@@ -82,6 +82,8 @@ export default function AcceptInvitePage() {
           return;
         }
 
+        const { data: { session } } = await supabase.auth.getSession();
+
         if (session?.user) {
           // Extra step for existing users: ensure they are enrolled in the project 
           // they just clicked the link for before redirecting.
