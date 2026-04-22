@@ -193,16 +193,22 @@ async function fetchPublishedRouteData(slugPath: string, xxivSiteId?: string) {
   };
 }
 
-async function resolveXxivSiteId(searchParams?: Promise<Record<string, string | string[] | undefined>>) {
+async function resolveXxivSiteContext(searchParams?: Promise<Record<string, string | string[] | undefined>>) {
   const resolvedSearchParams = await searchParams;
   const fromQuery = resolvedSearchParams?.xxiv_site_id;
 
   if (typeof fromQuery === 'string' && fromQuery) {
-    return fromQuery;
+    return {
+      siteId: fromQuery,
+      siteSlug: undefined,
+    };
   }
 
   const cookieStore = await cookies();
-  return cookieStore.get('xxiv_site_id')?.value;
+  return {
+    siteId: cookieStore.get('xxiv_site_id')?.value,
+    siteSlug: cookieStore.get('xxiv_site_slug')?.value,
+  };
 }
 
 async function resolveXxivSiteFromSlugPath(slug: string | string[]): Promise<XxivSiteRouteContext> {
@@ -321,18 +327,20 @@ interface PageProps {
 export default async function Page({ params, searchParams }: PageProps) {
   // Await params
   const { slug } = await params;
-  const xxivSiteIdFromSearch = await resolveXxivSiteId(searchParams);
+  const xxivSiteContext = await resolveXxivSiteContext(searchParams);
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
   
   // Resolve site context
   const xxivSiteRoute = await resolveXxivSiteFromSlugPath(slug);
+  const matchedSiteSlugInPath = xxivSiteRoute.siteSlug;
 
   // If a cookie or search param exists, it might override the site context,
   // but we still strip the slug from the path if they match.
-  if (xxivSiteIdFromSearch && !xxivSiteRoute.siteId) {
-    xxivSiteRoute.siteId = xxivSiteIdFromSearch;
+  if (xxivSiteContext.siteId && !xxivSiteRoute.siteId) {
+    xxivSiteRoute.siteId = xxivSiteContext.siteId;
+    xxivSiteRoute.siteSlug = xxivSiteContext.siteSlug;
     xxivSiteRoute.isXxivSiteRoute = true;
   }
 
@@ -470,24 +478,27 @@ export async function generateMetadata({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const xxivSiteIdFromSearch = await resolveXxivSiteId(searchParams);
+  const xxivSiteContext = await resolveXxivSiteContext(searchParams);
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
   const xxivSiteRoute = await resolveXxivSiteFromSlugPath(slug);
+  const matchedSiteSlugInPath = xxivSiteRoute.siteSlug;
 
   // If a cookie or search param exists, it might override the site context,
   // but we still strip the slug from the path if they match.
-  if (xxivSiteIdFromSearch && !xxivSiteRoute.siteId) {
-    xxivSiteRoute.siteId = xxivSiteIdFromSearch;
+  if (xxivSiteContext.siteId && !xxivSiteRoute.siteId) {
+    xxivSiteRoute.siteId = xxivSiteContext.siteId;
+    xxivSiteRoute.siteSlug = xxivSiteContext.siteSlug;
     xxivSiteRoute.isXxivSiteRoute = true;
   }
   
   const xxivSiteId = xxivSiteRoute.siteId;
   const targetSlugPath = xxivSiteRoute.pageSlugPath;
-  const pagePathForMeta = xxivSiteRoute.isXxivSiteRoute
+  const isPathBasedSiteRoute = Boolean(matchedSiteSlugInPath);
+  const pagePathForMeta = xxivSiteRoute.isXxivSiteRoute && isPathBasedSiteRoute
     ? `/${xxivSiteRoute.siteSlug}${xxivSiteRoute.pagePathname === '/' ? '' : xxivSiteRoute.pagePathname}`
-    : `/${slugPath}`;
+    : xxivSiteRoute.pagePathname;
   const fallbackTitleSource = targetSlugPath || xxivSiteRoute.siteSlug || slugPath;
 
   // Fetch page and global settings in parallel

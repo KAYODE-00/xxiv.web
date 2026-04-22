@@ -4,6 +4,7 @@ import { requireAuthUser, createDashboardClient } from '@/lib/xxiv/server-client
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { createToken } from '@/lib/repositories/mcpTokenRepository';
 import { createXxivSiteRecord, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
+import { buildXxivSiteUrl } from '@/lib/url-utils';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
@@ -21,13 +22,15 @@ async function buildSiteLiveUrl(
   const headerStore = await headers();
   const host = headerStore.get('x-forwarded-host') || headerStore.get('host');
   const protocol = headerStore.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
-  const sitePath = siteSlug ? `/${siteSlug}` : `/?xxiv_site_id=${encodeURIComponent(siteId)}`;
+  const fallbackOrigin = host ? `${protocol}://${host}` : null;
 
-  if (!host) {
-    return sitePath;
+  if (siteSlug) {
+    return buildXxivSiteUrl(siteSlug, { fallbackOrigin });
   }
 
-  return `${protocol}://${host}${sitePath}`;
+  return host
+    ? `${protocol}://${host}/?xxiv_site_id=${encodeURIComponent(siteId)}`
+    : `/?xxiv_site_id=${encodeURIComponent(siteId)}`;
 }
 
 export async function getUserSites() {

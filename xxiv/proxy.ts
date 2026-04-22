@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getXxivSiteSlugFromHost } from '@/lib/url-utils';
 
 /**
  * Public API routes that skip authentication.
@@ -77,18 +78,31 @@ function getSupabaseServiceRoleKey(): string | null {
     || null;
 }
 
-async function resolvePublishedXxivSiteIdFromPath(pathname: string): Promise<string | null> {
-  const firstSegment = pathname.split('/').filter(Boolean)[0];
-  if (!firstSegment) return null;
+type PublishedXxivSite = {
+  id: string;
+  slug: string;
+};
 
+async function resolvePublishedXxivSiteBySlug(siteSlug: string): Promise<PublishedXxivSite | null> {
+  return resolvePublishedXxivSiteByField('slug', siteSlug);
+}
+
+async function resolvePublishedXxivSiteByCustomDomain(domain: string): Promise<PublishedXxivSite | null> {
+  return resolvePublishedXxivSiteByField('custom_domain', domain);
+}
+
+async function resolvePublishedXxivSiteByField(
+  field: 'slug' | 'custom_domain',
+  value: string
+): Promise<PublishedXxivSite | null> {
   const config = getSupabaseEnvConfig();
   const serviceRoleKey = getSupabaseServiceRoleKey();
 
   if (!config || !serviceRoleKey) return null;
 
   const url = new URL('/rest/v1/xxiv_sites', config.url);
-  url.searchParams.set('select', 'id');
-  url.searchParams.set('slug', `eq.${firstSegment}`);
+  url.searchParams.set('select', 'id,slug');
+  url.searchParams.set(field, `eq.${value}`);
   url.searchParams.set('is_published', 'eq.true');
   url.searchParams.set('limit', '1');
 
@@ -105,10 +119,33 @@ async function resolvePublishedXxivSiteIdFromPath(pathname: string): Promise<str
 
     const data = await response.json().catch(() => []);
     const site = Array.isArray(data) ? data[0] : null;
-    return typeof site?.id === 'string' ? site.id : null;
+    return typeof site?.id === 'string' && typeof site?.slug === 'string'
+      ? { id: site.id, slug: site.slug }
+      : null;
   } catch {
     return null;
   }
+}
+
+async function resolvePublishedXxivSiteFromPath(pathname: string): Promise<PublishedXxivSite | null> {
+  const firstSegment = pathname.split('/').filter(Boolean)[0];
+  if (!firstSegment) return null;
+
+  return resolvePublishedXxivSiteBySlug(firstSegment);
+}
+
+async function resolvePublishedXxivSiteFromHost(host: string): Promise<PublishedXxivSite | null> {
+  const hostname = host.split(':')[0].toLowerCase();
+  const siteSlug = getXxivSiteSlugFromHost(host);
+
+  if (siteSlug) {
+    const subdomainSite = await resolvePublishedXxivSiteBySlug(siteSlug);
+    if (subdomainSite) {
+      return subdomainSite;
+    }
+  }
+
+  return resolvePublishedXxivSiteByCustomDomain(hostname);
 }
 
 function isPublicApiRoute(pathname: string, method: string): boolean {
@@ -209,6 +246,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const origin = request.nextUrl.origin;
   let xxivSiteId = request.nextUrl.searchParams.get('xxiv_site_id');
+  let xxivSiteSlug: string | null = null;
 
   // MCP endpoint uses its own token-based authentication — skip session auth.
   // Cloud overlay proxies MUST also exempt this path to avoid login redirects.
@@ -276,12 +314,27 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next();
 
   if (!xxivSiteId && isPublicPage) {
-    xxivSiteId = await resolvePublishedXxivSiteIdFromPath(pathname);
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || request.nextUrl.host;
+    const resolvedSite = await resolvePublishedXxivSiteFromHost(host)
+      || await resolvePublishedXxivSiteFromPath(pathname);
+
+    if (resolvedSite) {
+      xxivSiteId = resolvedSite.id;
+      xxivSiteSlug = resolvedSite.slug;
+    }
   }
 
   // Persist current XXIV site context for preview routes and dynamic public site URLs.
   if (xxivSiteId) {
     response.cookies.set('xxiv_site_id', xxivSiteId, {
+      path: '/',
+      httpOnly: false,
+      sameSite: 'lax',
+    });
+  }
+
+  if (xxivSiteSlug) {
+    response.cookies.set('xxiv_site_slug', xxivSiteSlug, {
       path: '/',
       httpOnly: false,
       sameSite: 'lax',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSettingByKey, setSetting } from '@/lib/repositories/settingsRepository';
 import { clearAllCache } from '@/lib/services/cacheService';
+import { getAuthUser } from '@/lib/xxiv/server-client';
 
 /**
  * GET /xxiv/api/settings/[key]
@@ -41,9 +42,17 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ key: string }> }
 ) {
+  let body: any = null;
+  let settingKey: string = 'unknown';
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { key } = await params;
-    const body = await request.json();
+    settingKey = key;
+    body = await request.json();
     const { value } = body;
 
     if (value === undefined) {
@@ -62,9 +71,13 @@ export async function PUT(
       message: 'Setting updated successfully',
     });
   } catch (error) {
-    console.error('[API] Error updating setting:', error);
+    console.error(`[API Settings ${settingKey}] Request Body:`, body);
+    console.error(`[API Settings ${settingKey}] Error:`, error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update setting' },
+      { 
+        error: error instanceof Error ? error.message : 'Failed to update setting',
+        stack: error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

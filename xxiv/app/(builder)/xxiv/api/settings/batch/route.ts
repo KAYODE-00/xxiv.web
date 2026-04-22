@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { setSettings } from '@/lib/repositories/settingsRepository';
 import { clearAllCache } from '@/lib/services/cacheService';
 
+import { getAuthUser } from '@/lib/xxiv/server-client';
+
 /**
  * PUT /xxiv/api/settings/batch
  *
@@ -10,9 +12,15 @@ import { clearAllCache } from '@/lib/services/cacheService';
  * Request body: { settings: { key1: value1, key2: value2, ... } }
  */
 export async function PUT(request: NextRequest) {
+  let body: any = null;
   try {
-    const body = await request.json();
-    const { settings } = body;
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    body = await request.json();
+    const { siteId, settings } = body;
 
     if (!settings || typeof settings !== 'object') {
       return NextResponse.json(
@@ -30,9 +38,13 @@ export async function PUT(request: NextRequest) {
       message: `Updated ${count} setting(s) successfully`,
     });
   } catch (error) {
-    console.error('[API] Error updating settings:', error);
+    console.error('[API Batch Settings] Request Body:', body);
+    console.error('[API Batch Settings] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update settings' },
+      { 
+        error: error instanceof Error ? error.message : 'Failed to update settings',
+        stack: error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

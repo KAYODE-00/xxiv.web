@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDashboardClient, getAuthUser } from '@/lib/xxiv/server-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { buildXxivSiteUrl } from '@/lib/url-utils';
 
 export const dynamic = 'force-dynamic';
-
-function buildDynamicSiteUrl(request: NextRequest, siteSlug: string) {
-  const url = new URL('/', request.url);
-  url.pathname = `/${siteSlug}`;
-  return url.toString();
-}
 
 async function getAccessibleSite(
   supabase: Awaited<ReturnType<typeof createDashboardClient>>,
@@ -96,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     const liveUrl = site.custom_domain && site.custom_domain_verified
       ? `https://${site.custom_domain}`
-      : buildDynamicSiteUrl(request, site.slug);
+      : buildXxivSiteUrl(site.slug, { fallbackOrigin: request.nextUrl.origin });
 
     await admin
       .from('xxiv_sites')
