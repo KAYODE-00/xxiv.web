@@ -626,6 +626,9 @@ export interface PageSettings {
     collection_id: string;
     slug_field_id: string;
   };
+  xxiv?: {
+    site_id: string;
+  };
   auth?: {
     enabled: boolean;
     password: string;

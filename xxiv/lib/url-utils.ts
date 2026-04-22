@@ -11,6 +11,7 @@ export function getSiteBaseUrl(options?: {
     options?.globalCanonicalUrl
     || options?.primaryDomainUrl
     || process.env.NEXT_PUBLIC_SITE_URL
+    || process.env.NEXT_PUBLIC_APP_URL
     || null;
 
   return raw ? raw.replace(/\/$/, '') : null;
@@ -32,6 +33,24 @@ function normalizeSitePath(sitePath?: string): string {
   return sitePath.startsWith('/') ? sitePath : `/${sitePath}`;
 }
 
+function resolvePreferredBaseUrl(fallbackOrigin?: string | null): string | null {
+  if (fallbackOrigin) {
+    try {
+      const fallbackUrl = new URL(fallbackOrigin);
+      if (isLocalHostname(fallbackUrl.hostname)) {
+        return fallbackOrigin;
+      }
+    } catch {
+      return fallbackOrigin;
+    }
+  }
+
+  return process.env.NEXT_PUBLIC_SITE_URL
+    || process.env.NEXT_PUBLIC_APP_URL
+    || fallbackOrigin
+    || null;
+}
+
 export function buildXxivSiteUrl(
   siteSlug: string,
   options?: {
@@ -40,11 +59,7 @@ export function buildXxivSiteUrl(
   }
 ): string {
   const sitePath = normalizeSitePath(options?.sitePath);
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL
-    || process.env.NEXT_PUBLIC_APP_URL
-    || options?.fallbackOrigin
-    || null;
+  const baseUrl = resolvePreferredBaseUrl(options?.fallbackOrigin);
 
   if (!baseUrl) {
     return sitePath === '/' ? `/${siteSlug}` : `/${siteSlug}${sitePath}`;
