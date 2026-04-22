@@ -325,17 +325,21 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
-  const xxivSiteRoute = xxivSiteIdFromSearch
-    ? {
-        siteId: xxivSiteIdFromSearch,
-        siteSlug: undefined,
-        pageSlugPath: slugPath,
-        pagePathname: `/${slugPath}`,
-        isXxivSiteRoute: false,
-      }
-    : await resolveXxivSiteFromSlugPath(slug);
+  
+  // Resolve site context
+  const xxivSiteRoute = await resolveXxivSiteFromSlugPath(slug);
+
+  // If a cookie or search param exists, it might override the site context,
+  // but we still strip the slug from the path if they match.
+  if (xxivSiteIdFromSearch && !xxivSiteRoute.siteId) {
+    xxivSiteRoute.siteId = xxivSiteIdFromSearch;
+    xxivSiteRoute.isXxivSiteRoute = true;
+  }
+
   const xxivSiteId = xxivSiteRoute.siteId;
   const targetSlugPath = xxivSiteRoute.pageSlugPath;
+
+  console.log(`[XXIV Route] Path: /${slugPath}, SiteID: ${xxivSiteId}, TargetSlug: ${targetSlugPath}, isSite: ${xxivSiteRoute.isXxivSiteRoute}`);
 
   // Check for redirects before processing the page
   const currentPath = xxivSiteRoute.pagePathname;
@@ -343,7 +347,6 @@ export default async function Page({ params, searchParams }: PageProps) {
   if (redirects && Array.isArray(redirects)) {
     const matchedRedirect = redirects.find((r) => r.oldUrl === currentPath);
     if (matchedRedirect) {
-      // Use permanentRedirect for 301 (default), redirect for 302
       if (matchedRedirect.type === '302') {
         redirect(matchedRedirect.newUrl);
       } else {
@@ -360,6 +363,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   // If page not found, try to show custom 404 error page
   if (!data) {
+    console.warn(`[XXIV Route] 404: No data found for /${slugPath} (SiteID: ${xxivSiteId})`);
     const errorPageData = await fetchCachedErrorPage(404);
 
     if (errorPageData) {
@@ -470,15 +474,15 @@ export async function generateMetadata({
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
-  const xxivSiteRoute = xxivSiteIdFromSearch
-    ? {
-        siteId: xxivSiteIdFromSearch,
-        siteSlug: undefined,
-        pageSlugPath: slugPath,
-        pagePathname: `/${slugPath}`,
-        isXxivSiteRoute: false,
-      }
-    : await resolveXxivSiteFromSlugPath(slug);
+  const xxivSiteRoute = await resolveXxivSiteFromSlugPath(slug);
+
+  // If a cookie or search param exists, it might override the site context,
+  // but we still strip the slug from the path if they match.
+  if (xxivSiteIdFromSearch && !xxivSiteRoute.siteId) {
+    xxivSiteRoute.siteId = xxivSiteIdFromSearch;
+    xxivSiteRoute.isXxivSiteRoute = true;
+  }
+  
   const xxivSiteId = xxivSiteRoute.siteId;
   const targetSlugPath = xxivSiteRoute.pageSlugPath;
   const pagePathForMeta = xxivSiteRoute.isXxivSiteRoute

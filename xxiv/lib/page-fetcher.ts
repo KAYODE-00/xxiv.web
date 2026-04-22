@@ -315,6 +315,8 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
       .is('deleted_at', null);
     if (xxivSiteId) {
       pagesQuery = pagesQuery.eq('xxiv_site_id', xxivSiteId);
+      console.log(`[Page Fetcher] Scoping search to SiteID: ${xxivSiteId}`);
+
     }
 
     const [{ data: pages }, { data: folders }, components] = await Promise.all([
@@ -698,29 +700,57 @@ export const fetchHomepage = cache(async function fetchHomepage(
       return null;
     }
 
-    // Fetch locales, homepage, and components in parallel
-    let homepageQuery = supabase
-      .from('pages')
+    let xxivHomePageId: string | null = null;
+    if (xxivSiteId) {
+      const { data: siteRecord } = await supabase
+        .from('xxiv_sites')
+        .select('home_page_id')
+        .eq('id', xxivSiteId)
+        .maybeSingle();
+
+      xxivHomePageId = siteRecord?.home_page_id ?? null;
+      console.log(`[Page Fetcher] Resolved Site Homepage ID: ${xxivHomePageId} for Site: ${xxivSiteId}`);
+    }
+
+    const localesPromise = supabase
+      .from('locales')
       .select('*')
-      .eq('is_index', true)
-      .is('page_folder_id', null)
       .eq('is_published', isPublished)
       .is('deleted_at', null);
-    if (xxivSiteId) {
-      homepageQuery = homepageQuery.eq('xxiv_site_id', xxivSiteId);
-    }
+
+    const componentsPromise = preloadedComponents
+      ? Promise.resolve(preloadedComponents)
+      : fetchComponents(supabase, isPublished);
+
+    const homepagePromise = xxivHomePageId
+      ? supabase
+          .from('pages')
+          .select('*')
+          .eq('id', xxivHomePageId)
+          .eq('is_published', isPublished)
+          .is('deleted_at', null)
+          .maybeSingle()
+      : (() => {
+          let homepageQuery = supabase
+            .from('pages')
+            .select('*')
+            .eq('is_index', true)
+            .is('page_folder_id', null)
+            .eq('is_published', isPublished)
+            .is('deleted_at', null);
+          if (xxivSiteId) {
+            homepageQuery = homepageQuery.eq('xxiv_site_id', xxivSiteId);
+          }
+          return homepageQuery.limit(1).single();
+        })();
 
     const [
       { data: availableLocales },
       { data: homepage },
       componentsResult,
-    ] = await Promise.all([
-      supabase.from('locales').select('*').eq('is_published', isPublished).is('deleted_at', null),
-      homepageQuery.limit(1).single(),
-      preloadedComponents ? Promise.resolve(preloadedComponents) : fetchComponents(supabase, isPublished),
-    ]);
+    ] = await Promise.all([localesPromise, homepagePromise, componentsPromise]);
 
-    let resolvedHomepage = homepage;
+    let resolvedHomepage = homepage || null;
     if (!resolvedHomepage && xxivSiteId) {
       // Legacy fallback: pages created before xxiv_site_id column was populated.
       const { data: legacyHomepage } = await supabase
@@ -734,6 +764,8 @@ export const fetchHomepage = cache(async function fetchHomepage(
         .limit(1)
         .single();
       resolvedHomepage = legacyHomepage || null;
+      console.log(`[Page Fetcher] Attempted legacy homepage lookup for SiteID: ${xxivSiteId}, Result: ${resolvedHomepage?.id || 'none'}`);
+
     }
 
     if (!resolvedHomepage) {

@@ -177,9 +177,9 @@ export async function createSite(formData: FormData) {
     .from('pages')
     .insert({
       name: 'Home',
-      slug: `home-${site.id.slice(0, 8)}`,
+      slug: '',
       page_folder_id: null,
-      is_index: false,
+      is_index: true,
       is_dynamic: false,
       depth: 0,
       order: 0,
