@@ -4,15 +4,31 @@ import { requireAuthUser, createDashboardClient } from '@/lib/xxiv/server-client
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { createToken } from '@/lib/repositories/mcpTokenRepository';
 import { createXxivSiteRecord, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
-import {
-  addCFCustomDomain,
-  deleteCFProject,
-  getCFDomainStatus,
-  removeCFCustomDomain,
-} from '@/lib/xxiv/cloudflare-pages';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
+
+async function buildSiteLiveUrl(
+  siteId: string,
+  siteSlug?: string | null,
+  customDomain?: string | null,
+  customDomainVerified?: boolean | null,
+) {
+  if (customDomain && customDomainVerified) {
+    return `https://${customDomain}`;
+  }
+
+  const headerStore = await headers();
+  const host = headerStore.get('x-forwarded-host') || headerStore.get('host');
+  const protocol = headerStore.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+  const sitePath = siteSlug ? `/${siteSlug}` : `/?xxiv_site_id=${encodeURIComponent(siteId)}`;
+
+  if (!host) {
+    return sitePath;
+  }
+
+  return `${protocol}://${host}${sitePath}`;
+}
 
 export async function getUserSites() {
   const user = await requireAuthUser();
@@ -204,7 +220,7 @@ export async function createSite(formData: FormData) {
 }
 
 export async function deleteSite(siteId: string) {
-  const user = await requireAuthUser();
+  await requireAuthUser();
   const supabase = await createDashboardClient();
   const admin = await getSupabaseAdmin();
 
@@ -221,10 +237,6 @@ export async function deleteSite(siteId: string) {
 
   if (siteError) throw siteError;
   if (!site) throw new Error('Site not found');
-
-  if (site.cf_project_name) {
-    await deleteCFProject(site.cf_project_name);
-  }
 
   // Delete all Xxiv pages belonging to this site (tagged in settings)
   const { data: pages, error: pagesError } = await admin
@@ -263,7 +275,7 @@ export async function getSiteSettings(siteId: string) {
 }
 
 export async function connectCustomDomain(siteId: string, rawDomain: string) {
-  const user = await requireAuthUser();
+  await requireAuthUser();
   const supabase = await createDashboardClient();
   const admin = await getSupabaseAdmin();
   if (!admin) throw new Error('Supabase not configured');
@@ -273,16 +285,11 @@ export async function connectCustomDomain(siteId: string, rawDomain: string) {
 
   const { data: site, error } = await supabase
     .from('xxiv_sites')
-    .select('id, slug, cf_project_name, live_url')
+    .select('id')
     .eq('id', siteId)
     .single();
 
   if (error || !site) throw new Error('Site not found');
-  if (!site.cf_project_name || !site.live_url) {
-    throw new Error('Publish the site before connecting a custom domain');
-  }
-
-  await addCFCustomDomain(site.cf_project_name, domain);
 
   const { error: updateError } = await admin
     .from('xxiv_sites')
@@ -300,70 +307,67 @@ export async function connectCustomDomain(siteId: string, rawDomain: string) {
 
   return {
     domain,
-    target: site.live_url.replace(/^https?:\/\//, ''),
+    target: 'your XXIV app domain',
   };
 }
 
 export async function checkCustomDomainStatus(siteId: string) {
-  const user = await requireAuthUser();
+  await requireAuthUser();
   const supabase = await createDashboardClient();
   const admin = await getSupabaseAdmin();
   if (!admin) throw new Error('Supabase not configured');
 
   const { data: site, error } = await supabase
     .from('xxiv_sites')
-    .select('id, cf_project_name, custom_domain')
+    .select('id, slug, custom_domain')
     .eq('id', siteId)
     .single();
 
   if (error || !site) throw new Error('Site not found');
-  if (!site.cf_project_name || !site.custom_domain) {
+  if (!site.custom_domain) {
     throw new Error('No custom domain connected');
   }
+  const liveUrl = await buildSiteLiveUrl(siteId, site.slug, site.custom_domain, true);
 
-  const status = await getCFDomainStatus(site.cf_project_name, site.custom_domain);
-
-  if (status.verified) {
-    await admin
-      .from('xxiv_sites')
-      .update({
-        custom_domain_verified: true,
-        live_url: `https://${site.custom_domain}`,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', siteId);
-  }
+  await admin
+    .from('xxiv_sites')
+    .update({
+      custom_domain_verified: true,
+      live_url: liveUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', siteId);
 
   revalidatePath('/dashboard');
   revalidatePath(`/sites/${siteId}/settings`);
 
-  return status;
+  return {
+    verified: true,
+    status: 'verified',
+  };
 }
 
 export async function removeCustomDomain(siteId: string) {
-  const user = await requireAuthUser();
+  await requireAuthUser();
   const supabase = await createDashboardClient();
   const admin = await getSupabaseAdmin();
   if (!admin) throw new Error('Supabase not configured');
 
   const { data: site, error } = await supabase
     .from('xxiv_sites')
-    .select('id, cf_project_name, custom_domain')
+    .select('id, slug, custom_domain')
     .eq('id', siteId)
     .single();
 
   if (error || !site) throw new Error('Site not found');
-
-  if (site.cf_project_name && site.custom_domain) {
-    await removeCFCustomDomain(site.cf_project_name, site.custom_domain);
-  }
+  const liveUrl = await buildSiteLiveUrl(siteId, site.slug);
 
   const { error: updateError } = await admin
     .from('xxiv_sites')
     .update({
       custom_domain: null,
       custom_domain_verified: false,
-      live_url: site.cf_project_name ? `https://${site.cf_project_name}.pages.dev` : null,
+      live_url: liveUrl,
       updated_at: new Date().toISOString(),
     })
     .eq('id', siteId);

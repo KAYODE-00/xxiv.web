@@ -1,6 +1,54 @@
 import { createDashboardClient, getAuthUser } from '@/lib/xxiv/server-client';
 import { NextRequest, NextResponse } from 'next/server';
 
+async function getAccessibleSite(
+  supabase: Awaited<ReturnType<typeof createDashboardClient>>,
+  userId: string,
+  siteId: string,
+) {
+  const { data: ownedSite, error: ownedSiteError } = await supabase
+    .from('xxiv_sites')
+    .select('id, name, slug, live_url, custom_domain, custom_domain_verified, is_published, publish_status, last_published_at')
+    .eq('id', siteId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (ownedSiteError) {
+    throw ownedSiteError;
+  }
+
+  if (ownedSite) {
+    return ownedSite;
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from('xxiv_site_members')
+    .select('site_id')
+    .eq('site_id', siteId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (membershipError) {
+    throw membershipError;
+  }
+
+  if (!membership) {
+    return null;
+  }
+
+  const { data: collaborativeSite, error: collaborativeSiteError } = await supabase
+    .from('xxiv_sites')
+    .select('id, name, slug, live_url, custom_domain, custom_domain_verified, is_published, publish_status, last_published_at')
+    .eq('id', siteId)
+    .maybeSingle();
+
+  if (collaborativeSiteError) {
+    throw collaborativeSiteError;
+  }
+
+  return collaborativeSite;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const siteId = request.nextUrl.searchParams.get('id');
@@ -16,14 +64,9 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createDashboardClient();
 
-    const { data: site, error } = await supabase
-      .from('xxiv_sites')
-      .select('id, name, slug, live_url, cf_project_name, custom_domain, custom_domain_verified, is_published, publish_status, last_published_at')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single();
+    const site = await getAccessibleSite(supabase, user.id, siteId);
 
-    if (error || !site) {
+    if (!site) {
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
     }
 
@@ -37,7 +80,6 @@ export async function GET(request: NextRequest) {
       name: site.name,
       slug: site.slug,
       live_url: liveUrl,
-      cf_project_name: site.cf_project_name,
       custom_domain: site.custom_domain,
       custom_domain_verified: site.custom_domain_verified,
       is_published: site.is_published,

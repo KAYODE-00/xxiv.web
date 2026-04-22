@@ -4,17 +4,26 @@ import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
 import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
-import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
+import { fetchHomepage, fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
 import { getSiteBaseUrl } from '@/lib/url-utils';
 import type { Page, PageFolder, Translation, Redirect as RedirectType } from '@/types';
+import { cookies } from 'next/headers';
 
 // Static by default for performance, dynamic only when pagination is requested
 export const revalidate = false; // Cache indefinitely until publish invalidates
 export const dynamicParams = true;
+
+type XxivSiteRouteContext = {
+  siteId?: string;
+  siteSlug?: string;
+  pageSlugPath: string;
+  pagePathname: string;
+  isXxivSiteRoute: boolean;
+};
 
 /**
  * Generate static params for known published pages
@@ -148,13 +157,13 @@ export async function generateStaticParams() {
  * Fetch published page and layers data from database
  * Cached per slug and page for revalidation
  */
-async function fetchPublishedPageWithLayers(slugPath: string) {
+async function fetchPublishedPageWithLayers(slugPath: string, xxivSiteId?: string) {
   try {
     return await unstable_cache(
-      async () => fetchPageByPath(slugPath, true),
-      [`data-for-route-/${slugPath}`],
+      async () => fetchPageByPath(slugPath, true, undefined, undefined, xxivSiteId),
+      [`data-for-route-/${xxivSiteId ?? 'default'}/${slugPath}`],
       {
-        tags: ['all-pages', `route-/${slugPath}`], // all-pages for full publish invalidation
+        tags: ['all-pages', `route-/${xxivSiteId ?? 'default'}/${slugPath}`],
         revalidate: false,
       }
     )();
@@ -162,11 +171,87 @@ async function fetchPublishedPageWithLayers(slugPath: string) {
     // Fallback to uncached fetch when data exceeds cache size limit (2MB).
     // If runtime credentials are unavailable (e.g. build-time), return null.
     try {
-      return await fetchPageByPath(slugPath, true);
+      return await fetchPageByPath(slugPath, true, undefined, undefined, xxivSiteId);
     } catch {
       return null;
     }
   }
+}
+
+async function fetchPublishedRouteData(slugPath: string, xxivSiteId?: string) {
+  if (slugPath) {
+    return fetchPublishedPageWithLayers(slugPath, xxivSiteId);
+  }
+
+  const homepageData = await fetchHomepage(true, undefined, undefined, undefined, xxivSiteId);
+  if (!homepageData) return null;
+
+  return {
+    ...homepageData,
+    collectionItem: undefined,
+    collectionFields: undefined,
+  };
+}
+
+async function resolveXxivSiteId(searchParams?: Promise<Record<string, string | string[] | undefined>>) {
+  const resolvedSearchParams = await searchParams;
+  const fromQuery = resolvedSearchParams?.xxiv_site_id;
+
+  if (typeof fromQuery === 'string' && fromQuery) {
+    return fromQuery;
+  }
+
+  const cookieStore = await cookies();
+  return cookieStore.get('xxiv_site_id')?.value;
+}
+
+async function resolveXxivSiteFromSlugPath(slug: string | string[]): Promise<XxivSiteRouteContext> {
+  const segments = (Array.isArray(slug) ? slug : [slug]).filter(Boolean);
+  const joinedSlugPath = segments.join('/');
+
+  if (segments.length === 0) {
+    return {
+      pageSlugPath: joinedSlugPath,
+      pagePathname: joinedSlugPath ? `/${joinedSlugPath}` : '/',
+      isXxivSiteRoute: false,
+    };
+  }
+
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
+    return {
+      pageSlugPath: joinedSlugPath,
+      pagePathname: `/${joinedSlugPath}`,
+      isXxivSiteRoute: false,
+    };
+  }
+
+  const candidateSiteSlug = segments[0];
+  const { data: site } = await supabase
+    .from('xxiv_sites')
+    .select('id, slug')
+    .eq('slug', candidateSiteSlug)
+    .eq('is_published', true)
+    .maybeSingle();
+
+  if (!site) {
+    return {
+      pageSlugPath: joinedSlugPath,
+      pagePathname: `/${joinedSlugPath}`,
+      isXxivSiteRoute: false,
+    };
+  }
+
+  const innerSegments = segments.slice(1);
+  const pageSlugPath = innerSegments.join('/');
+
+  return {
+    siteId: site.id,
+    siteSlug: site.slug,
+    pageSlugPath,
+    pagePathname: pageSlugPath ? `/${pageSlugPath}` : '/',
+    isXxivSiteRoute: true,
+  };
 }
 
 async function fetchCachedRedirects(): Promise<RedirectType[] | null> {
@@ -230,17 +315,30 @@ async function fetchCachedErrorPage(errorCode: 401 | 404) {
 
 interface PageProps {
   params: Promise<{ slug: string | string[] }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function Page({ params }: PageProps) {
+export default async function Page({ params, searchParams }: PageProps) {
   // Await params
   const { slug } = await params;
+  const xxivSiteIdFromSearch = await resolveXxivSiteId(searchParams);
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
+  const xxivSiteRoute = xxivSiteIdFromSearch
+    ? {
+        siteId: xxivSiteIdFromSearch,
+        siteSlug: undefined,
+        pageSlugPath: slugPath,
+        pagePathname: `/${slugPath}`,
+        isXxivSiteRoute: false,
+      }
+    : await resolveXxivSiteFromSlugPath(slug);
+  const xxivSiteId = xxivSiteRoute.siteId;
+  const targetSlugPath = xxivSiteRoute.pageSlugPath;
 
   // Check for redirects before processing the page
-  const currentPath = `/${slugPath}`;
+  const currentPath = xxivSiteRoute.pagePathname;
   const redirects = await fetchCachedRedirects();
   if (redirects && Array.isArray(redirects)) {
     const matchedRedirect = redirects.find((r) => r.oldUrl === currentPath);
@@ -255,7 +353,7 @@ export default async function Page({ params }: PageProps) {
   }
 
   // Cache-first slug path; pagination is served through internal dynamic routes.
-  const data = await fetchPublishedPageWithLayers(slugPath);
+  const data = await fetchPublishedRouteData(targetSlugPath, xxivSiteId);
 
   // Load all global settings early so error pages also get global custom code
   const globalSettings = await fetchCachedGlobalSettings();
@@ -360,15 +458,37 @@ export default async function Page({ params }: PageProps) {
 }
 
 // Generate metadata
-export async function generateMetadata({ params }: { params: Promise<{ slug: string | string[] }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string | string[] }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
   const { slug } = await params;
+  const xxivSiteIdFromSearch = await resolveXxivSiteId(searchParams);
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
+  const xxivSiteRoute = xxivSiteIdFromSearch
+    ? {
+        siteId: xxivSiteIdFromSearch,
+        siteSlug: undefined,
+        pageSlugPath: slugPath,
+        pagePathname: `/${slugPath}`,
+        isXxivSiteRoute: false,
+      }
+    : await resolveXxivSiteFromSlugPath(slug);
+  const xxivSiteId = xxivSiteRoute.siteId;
+  const targetSlugPath = xxivSiteRoute.pageSlugPath;
+  const pagePathForMeta = xxivSiteRoute.isXxivSiteRoute
+    ? `/${xxivSiteRoute.siteSlug}${xxivSiteRoute.pagePathname === '/' ? '' : xxivSiteRoute.pagePathname}`
+    : `/${slugPath}`;
+  const fallbackTitleSource = targetSlugPath || xxivSiteRoute.siteSlug || slugPath;
 
   // Fetch page and global settings in parallel
   const [data, globalSettings] = await Promise.all([
-    fetchPublishedPageWithLayers(slugPath),
+    fetchPublishedRouteData(targetSlugPath, xxivSiteId),
     fetchCachedGlobalSettings(),
   ]);
 
@@ -398,9 +518,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { meta, baseUrl } = await unstable_cache(
     async () => ({
       meta: await generatePageMetadata(data.page, {
-        fallbackTitle: slugPath.charAt(0).toUpperCase() + slugPath.slice(1),
+        fallbackTitle: fallbackTitleSource.charAt(0).toUpperCase() + fallbackTitleSource.slice(1),
         collectionItem: data.collectionItem,
-        pagePath: '/' + slugPath,
+        pagePath: pagePathForMeta,
         globalSeoSettings: globalSettings,
       }),
       baseUrl: getSiteBaseUrl({ globalCanonicalUrl: globalSettings.globalCanonicalUrl }),

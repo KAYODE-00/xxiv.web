@@ -110,7 +110,7 @@ export default function PublishPopover({
       let resolvedLiveUrl = liveUrl;
 
       if (xxivSiteId) {
-        setPublishStepLabel('Deploying to Cloudflare...');
+        setPublishStepLabel('Publishing live site...');
 
         const deployResponse = await fetch('/xxiv/api/xxiv/publish', {
           method: 'POST',
@@ -122,7 +122,7 @@ export default function PublishPopover({
 
         const deployJson = await deployResponse.json().catch(() => null);
         if (!deployResponse.ok) {
-          throw new Error(deployJson?.error || 'Cloudflare deploy failed');
+          throw new Error(deployJson?.error || 'Site publish failed');
         }
 
         resolvedLiveUrl = typeof deployJson?.url === 'string' ? deployJson.url : liveUrl;

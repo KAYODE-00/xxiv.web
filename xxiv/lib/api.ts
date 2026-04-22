@@ -435,14 +435,6 @@ export const setupApi = {
     });
   },
 
-  // Update Vercel env vars
-  async updateVercelEnv(vars: Record<string, string>): Promise<ApiResponse<{ success: boolean }>> {
-    return apiRequest<{ success: boolean }>('/xxiv/api/setup/update-vercel-env', {
-      method: 'POST',
-      body: JSON.stringify(vars),
-    });
-  },
-
   // Run migrations
   async runMigrations(): Promise<ApiResponse<{ success: boolean }>> {
     return apiRequest<{ success: boolean }>('/xxiv/api/setup/run-migrations', {

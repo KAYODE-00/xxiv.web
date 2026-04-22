@@ -19,7 +19,7 @@ export default async function SiteSettingsPage({
           <div className="mb-8 flex items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-semibold">{site.name} Settings</h1>
-              <p className="mt-2 text-sm text-zinc-400">Manage your Pages URL and custom domain under your XXIV Cloudflare account.</p>
+              <p className="mt-2 text-sm text-zinc-400">Manage the live URL and custom domain for this site inside your shared XXIV app.</p>
             </div>
             <Link
               href="/dashboard"
@@ -35,7 +35,6 @@ export default async function SiteSettingsPage({
               name: site.name,
               slug: site.slug,
               live_url: site.live_url,
-              cf_project_name: site.cf_project_name,
               custom_domain: site.custom_domain,
               custom_domain_verified: site.custom_domain_verified ?? false,
               publish_status: site.publish_status ?? 'unpublished',

@@ -14,10 +14,9 @@ type SiteRow = {
   plan: string;
   is_published: boolean | null;
   live_url?: string | null;
-  cf_project_name?: string | null;
   custom_domain?: string | null;
   custom_domain_verified?: boolean | null;
-  publish_status?: 'unpublished' | 'deploying' | 'live' | 'failed' | string | null;
+  publish_status?: 'unpublished' | 'publishing' | 'live' | 'failed' | string | null;
   last_published_at?: string | null;
   thumbnail_url: string | null;
   page_folder_id: string | null;
@@ -416,15 +415,15 @@ function SiteCard({
   const isLive = !!site.live_url || site.publish_status === 'live';
   const liveUrl = site.custom_domain && site.custom_domain_verified
     ? `https://${site.custom_domain}`
-    : site.live_url || (site.cf_project_name ? `https://${site.cf_project_name}.pages.dev` : null);
+    : site.live_url || null;
   const statusLabel = isLive
     ? 'Live'
-    : site.publish_status === 'deploying'
-      ? 'Deploying...'
+    : site.publish_status === 'publishing'
+      ? 'Publishing...'
       : site.publish_status === 'failed'
         ? 'Failed'
         : 'Not published';
-  const statusColor = isLive ? '#22c55e' : site.publish_status === 'failed' ? '#ef4444' : site.publish_status === 'deploying' ? '#f59e0b' : '#666';
+  const statusColor = isLive ? '#22c55e' : site.publish_status === 'failed' ? '#ef4444' : site.publish_status === 'publishing' ? '#f59e0b' : '#666';
 
   return (
     <div

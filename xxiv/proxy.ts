@@ -71,6 +71,46 @@ function getSupabaseEnvConfig(): { url: string; anonKey: string } | null {
   };
 }
 
+function getSupabaseServiceRoleKey(): string | null {
+  return process.env.SUPABASE_SECRET_KEY
+    || process.env.SUPABASE_SERVICE_ROLE_KEY
+    || null;
+}
+
+async function resolvePublishedXxivSiteIdFromPath(pathname: string): Promise<string | null> {
+  const firstSegment = pathname.split('/').filter(Boolean)[0];
+  if (!firstSegment) return null;
+
+  const config = getSupabaseEnvConfig();
+  const serviceRoleKey = getSupabaseServiceRoleKey();
+
+  if (!config || !serviceRoleKey) return null;
+
+  const url = new URL('/rest/v1/xxiv_sites', config.url);
+  url.searchParams.set('select', 'id');
+  url.searchParams.set('slug', `eq.${firstSegment}`);
+  url.searchParams.set('is_published', 'eq.true');
+  url.searchParams.set('limit', '1');
+
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json().catch(() => []);
+    const site = Array.isArray(data) ? data[0] : null;
+    return typeof site?.id === 'string' ? site.id : null;
+  } catch {
+    return null;
+  }
+}
+
 function isPublicApiRoute(pathname: string, method: string): boolean {
   // POST to form-submissions is public (website visitors submitting forms)
   if (pathname === '/xxiv/api/form-submissions' && method === 'POST') {
@@ -82,7 +122,7 @@ function isPublicApiRoute(pathname: string, method: string): boolean {
 
   // Collection item endpoints for published pages (POST only — filter, load-more)
   if (method === 'POST' && pathname.startsWith('/xxiv/api/collections/') &&
-      PUBLIC_COLLECTION_ITEM_SUFFIXES.some(suffix => pathname.endsWith(suffix))) {
+    PUBLIC_COLLECTION_ITEM_SUFFIXES.some(suffix => pathname.endsWith(suffix))) {
     return true;
   }
 
@@ -168,7 +208,7 @@ async function getXxivUser(request: NextRequest): Promise<{ id: string } | null>
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const origin = request.nextUrl.origin;
-  const xxivSiteId = request.nextUrl.searchParams.get('xxiv_site_id');
+  let xxivSiteId = request.nextUrl.searchParams.get('xxiv_site_id');
 
   // MCP endpoint uses its own token-based authentication — skip session auth.
   // Cloud overlay proxies MUST also exempt this path to avoid login redirects.
@@ -235,8 +275,12 @@ export async function proxy(request: NextRequest) {
   // Create response
   const response = NextResponse.next();
 
-  // Persist current XXIV site context for clean preview URLs.
-  if (pathname.startsWith('/xxiv') && xxivSiteId) {
+  if (!xxivSiteId && isPublicPage) {
+    xxivSiteId = await resolvePublishedXxivSiteIdFromPath(pathname);
+  }
+
+  // Persist current XXIV site context for preview routes and dynamic public site URLs.
+  if (xxivSiteId) {
     response.cookies.set('xxiv_site_id', xxivSiteId, {
       path: '/',
       httpOnly: false,

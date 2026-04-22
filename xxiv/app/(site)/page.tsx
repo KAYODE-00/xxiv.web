@@ -8,6 +8,7 @@ import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/l
 import { getSiteBaseUrl } from '@/lib/url-utils';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 
 // Static by default for performance, dynamic only when pagination is requested
 export const revalidate = false; // Cache indefinitely until publish invalidates
@@ -16,13 +17,13 @@ export const revalidate = false; // Cache indefinitely until publish invalidates
  * Fetch homepage data from database
  * Cached with tag-based revalidation (no time-based stale cache)
  */
-async function fetchPublishedHomepage() {
+async function fetchPublishedHomepage(xxivSiteId?: string) {
   try {
     return await unstable_cache(
-      async () => fetchHomepage(true),
-      ['data-for-route-/'],
+      async () => fetchHomepage(true, undefined, undefined, undefined, xxivSiteId),
+      [`data-for-route-/${xxivSiteId ?? 'default'}`],
       {
-        tags: ['all-pages', 'route-/'], // all-pages for full publish invalidation, route-/ for targeted
+        tags: ['all-pages', `route-/${xxivSiteId ?? 'default'}`],
         revalidate: false,
       }
     )();
@@ -30,11 +31,23 @@ async function fetchPublishedHomepage() {
     // Fallback to uncached fetch when data exceeds cache size limit (2MB).
     // If runtime credentials are unavailable (e.g. build-time), return null.
     try {
-      return await fetchHomepage(true);
+      return await fetchHomepage(true, undefined, undefined, undefined, xxivSiteId);
     } catch {
       return null;
     }
   }
+}
+
+async function resolveXxivSiteId(searchParams?: Promise<Record<string, string | string[] | undefined>>) {
+  const resolvedSearchParams = await searchParams;
+  const fromQuery = resolvedSearchParams?.xxiv_site_id;
+
+  if (typeof fromQuery === 'string' && fromQuery) {
+    return fromQuery;
+  }
+
+  const cookieStore = await cookies();
+  return cookieStore.get('xxiv_site_id')?.value;
 }
 
 async function fetchCachedGlobalSettings() {
@@ -84,9 +97,15 @@ async function fetchCachedErrorPage(errorCode: 401) {
   }
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const xxivSiteId = await resolveXxivSiteId(searchParams);
+
   // Cache-first homepage path; pagination is served through internal dynamic routes.
-  const data = await fetchPublishedHomepage();
+  const data = await fetchPublishedHomepage(xxivSiteId);
 
   // If no published homepage exists, show default landing page
   if (!data || !data.pageLayers) {
@@ -170,10 +189,16 @@ export default async function Home() {
 }
 
 // Generate metadata
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  const xxivSiteId = await resolveXxivSiteId(searchParams);
+
   // Fetch page and global settings in parallel
   const [data, globalSettings] = await Promise.all([
-    fetchPublishedHomepage(),
+    fetchPublishedHomepage(xxivSiteId),
     fetchCachedGlobalSettings(),
   ]);
 

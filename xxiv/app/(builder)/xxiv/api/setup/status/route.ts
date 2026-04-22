@@ -37,14 +37,12 @@ async function hasAuthUsers(): Promise<boolean> {
 export async function GET() {
   try {
     const config = await credentials.get<SupabaseConfig>('supabase_config');
-    const isVercel = process.env.VERCEL === '1';
 
     // If no config, return not configured
     if (!config) {
       return noCache({
         is_configured: false,
         is_setup_complete: false,
-        is_vercel: isVercel,
       });
     }
 
@@ -57,7 +55,6 @@ export async function GET() {
       return noCache({
         is_configured: false,
         is_setup_complete: false,
-        is_vercel: isVercel,
         error: validationError instanceof Error
           ? validationError.message
           : 'Invalid SUPABASE_CONNECTION_URL format. Expected: postgresql://postgres.[PROJECT-ID]:[YOUR-PASSWORD]@aws-x-xx-xxxx-x.pooler.supabase.com:6543/postgres',
@@ -71,7 +68,6 @@ export async function GET() {
     return noCache({
       is_configured: true,
       is_setup_complete: setupComplete,
-      is_vercel: isVercel,
     });
   } catch (error) {
     console.error('Setup status check failed:', error);
