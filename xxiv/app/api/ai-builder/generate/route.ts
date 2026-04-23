@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createDashboardClient } from '@/lib/xxiv/server-client';
 import { getAuthUser } from '@/lib/supabase-auth';
 import { createAiBuilderLog, updateAiBuilderLog } from '@/lib/ai-builder/logs';
-import { normalizeSitePlan } from '@/lib/ai-builder/site-plan';
+import { normalizeGeneratedSitePlanInput, normalizeSitePlan } from '@/lib/ai-builder/site-plan';
 import { generateSitePlanWithProvider } from '@/lib/ai-builder/providers';
 import {
   aiBuilderGenerateRequestSchema,
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     const referenceUrlContext = await buildReferenceUrlContext(payload.referenceUrl);
     const prompt = buildPlanningPrompt(payload, referenceUrlContext);
     const generatedPlan = await generateSitePlanWithProvider(payload, prompt);
-    const sitePlan = normalizeSitePlan(aiBuilderSitePlanSchema.parse(generatedPlan));
+    const sitePlan = normalizeSitePlan(aiBuilderSitePlanSchema.parse(normalizeGeneratedSitePlanInput(generatedPlan)));
 
     await updateAiBuilderLog(logId, {
       status: 'building',

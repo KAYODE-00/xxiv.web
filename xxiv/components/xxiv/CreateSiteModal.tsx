@@ -1,7 +1,7 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
@@ -74,7 +74,7 @@ export default function CreateSiteModal({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const [aiProvider, setAiProvider] = useState<AiBuilderProviderId>('anthropic');
+  const [aiProvider, setAiProvider] = useState<AiBuilderProviderId>('groq');
   const [aiInputSource, setAiInputSource] = useState<AiBuilderInputSource>('prompt');
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiReferenceUrl, setAiReferenceUrl] = useState('');
@@ -107,12 +107,18 @@ export default function CreateSiteModal({
     return aiImageFile !== null;
   }, [aiImageFile, aiInputSource, aiPrompt, aiReferenceUrl, siteName]);
 
+  useEffect(() => {
+    if (aiInputSource === 'upload' && aiProvider !== 'anthropic') {
+      setAiProvider('anthropic');
+    }
+  }, [aiInputSource, aiProvider]);
+
   function resetAiState() {
     if (aiImagePreview) {
       URL.revokeObjectURL(aiImagePreview);
     }
 
-    setAiProvider('anthropic');
+    setAiProvider('groq');
     setAiInputSource('prompt');
     setAiPrompt('');
     setAiReferenceUrl('');

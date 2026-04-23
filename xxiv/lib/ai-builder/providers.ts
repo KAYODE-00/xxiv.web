@@ -22,6 +22,30 @@ type AiBuilderProvider = {
   generateSitePlan: (args: GenerateSitePlanArgs) => Promise<AiBuilderSitePlan>;
 };
 
+function hasGroqConfigured() {
+  return Boolean(process.env.GROQ_API_KEY);
+}
+
+function shouldFallbackToGroq(payload: AiBuilderGenerateRequest, error: unknown) {
+  if (payload.imageBase64) {
+    return false;
+  }
+
+  if (!hasGroqConfigured()) {
+    return false;
+  }
+
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+  return (
+    message.includes('credit balance is too low')
+    || message.includes('billing')
+    || message.includes('insufficient_quota')
+    || message.includes('rate limit')
+    || message.includes('deprecated')
+    || message.includes('model')
+  );
+}
+
 function getAnthropicClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -167,5 +191,14 @@ export async function generateSitePlanWithProvider(
   prompt: string,
 ) {
   const provider = getAiBuilderProvider(payload.provider);
-  return provider.generateSitePlan({ payload, prompt });
+
+  try {
+    return await provider.generateSitePlan({ payload, prompt });
+  } catch (error) {
+    if (provider.id === 'anthropic' && shouldFallbackToGroq(payload, error)) {
+      return PROVIDERS.groq.generateSitePlan({ payload: { ...payload, provider: 'groq' }, prompt });
+    }
+
+    throw error;
+  }
 }

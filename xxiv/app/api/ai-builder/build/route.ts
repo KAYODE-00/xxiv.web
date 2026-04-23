@@ -6,6 +6,10 @@ import { createAiBuilderLog, updateAiBuilderLog } from '@/lib/ai-builder/logs';
 import { runAiSiteBuild, type XxivSiteRecord } from '@/lib/ai-builder/build';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 600;
+
+const AI_BUILDER_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
+const SSE_HEARTBEAT_MS = 15 * 1000;
 
 function sseEvent(event: string, data: Record<string, unknown>) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -25,8 +29,22 @@ export async function POST(request: NextRequest) {
 
   const stream = new ReadableStream({
     start(controller) {
+      let closed = false;
+      let heartbeatId: ReturnType<typeof setInterval> | null = null;
+
       const emit = (event: string, data: Record<string, unknown>) => {
+        if (closed) return;
         controller.enqueue(encoder.encode(sseEvent(event, data)));
+      };
+
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        if (heartbeatId) {
+          clearInterval(heartbeatId);
+          heartbeatId = null;
+        }
+        controller.close();
       };
 
       const closeWithError = async (message: string) => {
@@ -38,8 +56,12 @@ export async function POST(request: NextRequest) {
             // Ignore logging failures.
           }
         }
-        controller.close();
+        close();
       };
+
+      heartbeatId = setInterval(() => {
+        emit('ping', { ts: Date.now() });
+      }, SSE_HEARTBEAT_MS);
 
       void Promise.race([
         (async () => {
@@ -90,13 +112,16 @@ export async function POST(request: NextRequest) {
               });
             }
 
-            controller.close();
+            close();
           } catch (error) {
             await closeWithError(error instanceof Error ? error.message : 'Failed to build site');
           }
         })(),
         new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('AI Builder timed out after 120 seconds')), 120000);
+          setTimeout(
+            () => reject(new Error('AI Builder timed out after 10 minutes')),
+            AI_BUILDER_BUILD_TIMEOUT_MS,
+          );
         }),
       ]).catch(async (error) => {
         await closeWithError(error instanceof Error ? error.message : 'Failed to build site');

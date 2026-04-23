@@ -1,5 +1,150 @@
 import type { AiBuilderSitePlan } from '@/lib/ai-builder/types';
 
+const VALID_SECTION_TYPES = new Set([
+  'hero',
+  'features',
+  'about',
+  'services',
+  'pricing',
+  'testimonials',
+  'contact',
+  'footer',
+  'gallery',
+  'faq',
+]);
+
+function sanitizeSectionType(value: unknown): string {
+  const normalized = typeof value === 'string'
+    ? value.trim().toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-+|-+$/g, '')
+    : '';
+
+  if (VALID_SECTION_TYPES.has(normalized)) {
+    return normalized;
+  }
+
+  if (
+    normalized.includes('cta')
+    || normalized.includes('call-to-action')
+    || normalized.includes('conversion')
+    || normalized.includes('banner')
+    || normalized.includes('lead')
+  ) {
+    return 'contact';
+  }
+
+  if (
+    normalized.includes('feature')
+    || normalized.includes('benefit')
+    || normalized.includes('highlight')
+    || normalized.includes('value')
+    || normalized.includes('why-choose')
+    || normalized.includes('stat')
+  ) {
+    return 'features';
+  }
+
+  if (
+    normalized.includes('service')
+    || normalized.includes('product')
+    || normalized.includes('offer')
+    || normalized.includes('solution')
+    || normalized.includes('capab')
+  ) {
+    return 'services';
+  }
+
+  if (
+    normalized.includes('about')
+    || normalized.includes('story')
+    || normalized.includes('mission')
+    || normalized.includes('vision')
+    || normalized.includes('team')
+    || normalized.includes('founder')
+  ) {
+    return 'about';
+  }
+
+  if (
+    normalized.includes('review')
+    || normalized.includes('testimonial')
+    || normalized.includes('social-proof')
+    || normalized.includes('case-study')
+    || normalized.includes('client')
+  ) {
+    return 'testimonials';
+  }
+
+  if (
+    normalized.includes('price')
+    || normalized.includes('plan')
+    || normalized.includes('package')
+    || normalized.includes('tier')
+  ) {
+    return 'pricing';
+  }
+
+  if (
+    normalized.includes('faq')
+    || normalized.includes('question')
+    || normalized.includes('accordion')
+  ) {
+    return 'faq';
+  }
+
+  if (
+    normalized.includes('contact')
+    || normalized.includes('form')
+    || normalized.includes('book')
+    || normalized.includes('consult')
+    || normalized.includes('reach')
+  ) {
+    return 'contact';
+  }
+
+  if (
+    normalized.includes('gallery')
+    || normalized.includes('portfolio')
+    || normalized.includes('project')
+    || normalized.includes('showcase')
+    || normalized.includes('work')
+  ) {
+    return 'gallery';
+  }
+
+  if (normalized.includes('footer')) {
+    return 'footer';
+  }
+
+  return 'features';
+}
+
+export function normalizeGeneratedSitePlanInput(value: unknown): unknown {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const plan = value as {
+    pages?: Array<{
+      sections?: Array<Record<string, unknown>>;
+    }>;
+  };
+
+  return {
+    ...plan,
+    pages: Array.isArray(plan.pages)
+      ? plan.pages.map((page) => ({
+          ...page,
+          sections: Array.isArray(page.sections)
+            ? page.sections.map((section) => ({
+                ...section,
+                type: sanitizeSectionType(section?.type),
+              }))
+            : page.sections,
+        }))
+      : plan.pages,
+  };
+}
+
 export const AI_BUILDER_SYSTEM_PROMPT = `You are an expert web designer and developer. Your job is to analyze
 the user's input (text description, uploaded design image, figma export, screenshot,
 or reference website URL) and create a complete website plan.
