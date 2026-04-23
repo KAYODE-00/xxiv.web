@@ -110,6 +110,7 @@ interface LayerRendererProps {
   parentFormSettings?: FormSettings; // Form settings from parent form layer
   pages?: any[]; // Pages for link resolution
   folders?: any[]; // Folders for link resolution
+  siteBasePath?: string; // Prefix for path-based site routing (e.g. /site-slug)
   collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
   isPreview?: boolean; // Whether we're in preview mode (prefix links with /xxiv/preview)
   translations?: Record<string, any> | null; // Translations for localized URL generation
@@ -163,6 +164,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   parentFormSettings,
   pages: pagesProp,
   folders: foldersProp,
+  siteBasePath,
   isPreview = false,
   translations,
   anchorMap: anchorMapProp,
@@ -304,6 +306,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         parentFormSettings={parentFormSettings}
         pages={pages}
         folders={folders}
+        siteBasePath={siteBasePath}
         collectionItemSlugs={collectionItemSlugs}
         isPreview={isPreview}
         translations={translations}
@@ -366,6 +369,7 @@ const LayerItem: React.FC<{
   parentFormSettings?: FormSettings; // Form settings from parent form layer
   pages?: any[]; // Pages for link resolution
   folders?: any[]; // Folders for link resolution
+  siteBasePath?: string; // Prefix for path-based site routing (e.g. /site-slug)
   collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
   isPreview?: boolean; // Whether we're in preview mode
   translations?: Record<string, any> | null; // Translations for localized URL generation
@@ -416,6 +420,7 @@ const LayerItem: React.FC<{
   parentFormSettings,
   pages,
   folders,
+  siteBasePath,
   collectionItemSlugs,
   isPreview,
   translations,
@@ -1543,6 +1548,7 @@ const LayerItem: React.FC<{
   const layerLinkContext: LinkResolutionContext | undefined = isEditMode ? undefined : {
     pages,
     folders,
+    siteBasePath,
     collectionItemSlugs,
     collectionItemId: collectionLayerItemId,
     pageCollectionItemId,
@@ -2641,9 +2647,10 @@ const LayerItem: React.FC<{
               layerDataMap={effectiveLayerDataMap}
               pageCollectionItemId={pageCollectionItemId}
               pageCollectionItemData={pageCollectionItemData}
-              pages={pages}
-              folders={folders}
-              collectionItemSlugs={collectionItemSlugs}
+                pages={pages}
+                folders={folders}
+                siteBasePath={siteBasePath}
+                collectionItemSlugs={collectionItemSlugs}
               isPreview={isPreview}
               translations={translations}
               anchorMap={anchorMap}
@@ -2859,6 +2866,7 @@ const LayerItem: React.FC<{
                     parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
                     pages={pages}
                     folders={folders}
+                    siteBasePath={siteBasePath}
                     collectionItemSlugs={collectionItemSlugs}
                     isPreview={isPreview}
                     translations={translations}
@@ -2913,6 +2921,7 @@ const LayerItem: React.FC<{
               pageCollectionItemData={pageCollectionItemData}
               pages={pages}
               folders={folders}
+              siteBasePath={siteBasePath}
               collectionItemSlugs={collectionItemSlugs}
               isPreview={isPreview}
               translations={translations}
@@ -2997,6 +3006,7 @@ const LayerItem: React.FC<{
             parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
             pages={pages}
             folders={folders}
+            siteBasePath={siteBasePath}
             collectionItemSlugs={collectionItemSlugs}
             isPreview={isPreview}
             translations={translations}

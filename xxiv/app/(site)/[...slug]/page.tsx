@@ -346,6 +346,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   const xxivSiteId = xxivSiteRoute.siteId;
   const targetSlugPath = xxivSiteRoute.pageSlugPath;
+  const siteBasePath = matchedSiteSlugInPath ? `/${matchedSiteSlugInPath}` : undefined;
 
   console.log(`[XXIV Route] Path: /${slugPath}, SiteID: ${xxivSiteId}, TargetSlug: ${targetSlugPath}, isSite: ${xxivSiteRoute.isXxivSiteRoute}`);
 
@@ -454,6 +455,7 @@ export default async function Page({ params, searchParams }: PageProps) {
       page={page}
       layers={pageLayers.layers || []}
       components={components}
+      siteBasePath={siteBasePath}
       generatedCss={globalSettings.publishedCss || undefined}
       colorVariablesCss={globalSettings.colorVariablesCss || undefined}
       collectionItem={collectionItem}

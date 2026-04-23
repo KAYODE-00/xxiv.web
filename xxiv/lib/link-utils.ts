@@ -223,6 +223,7 @@ export function resolveRefCollectionItemId(
 export interface LinkResolutionContext {
   pages?: Page[];
   folders?: PageFolder[];
+  siteBasePath?: string;
   collectionItemSlugs?: Record<string, string>;
   collectionItemId?: string;
   pageCollectionItemId?: string;
@@ -237,6 +238,22 @@ export interface LinkResolutionContext {
   resolvedAssets?: Record<string, { url: string; width?: number | null; height?: number | null }>;
   /** Map of layer ID → item data for layer-specific field resolution */
   layerDataMap?: Record<string, Record<string, string>>;
+}
+
+function prefixInternalSiteHref(href: string, siteBasePath?: string | null): string {
+  if (!siteBasePath || !href.startsWith('/') || href.startsWith('/xxiv/preview')) {
+    return href;
+  }
+
+  if (href === siteBasePath || href.startsWith(`${siteBasePath}/`) || href.startsWith(`${siteBasePath}#`)) {
+    return href;
+  }
+
+  if (href === '/') {
+    return siteBasePath;
+  }
+
+  return `${siteBasePath}${href}`;
 }
 
 /**
@@ -356,7 +373,7 @@ export function resolveCollectionLinkValue(
   linkValue: CollectionLinkValue,
   context: LinkResolutionContext
 ): string | null {
-  const { pages, folders, collectionItemSlugs, isPreview, locale, translations } = context;
+  const { pages, folders, siteBasePath, collectionItemSlugs, isPreview, locale, translations } = context;
 
   if (linkValue.type === 'url') {
     return linkValue.url || null;
@@ -387,6 +404,8 @@ export function resolveCollectionLinkValue(
     // Prefix with /xxiv/preview in preview mode
     if (isPreview && href) {
       href = `/xxiv/preview${href}`;
+    } else if (href) {
+      href = prefixInternalSiteHref(href, siteBasePath);
     }
 
     // Append anchor if present
@@ -413,6 +432,7 @@ export function generateLinkHref(
   const {
     pages,
     folders,
+    siteBasePath,
     collectionItemSlugs,
     collectionItemId,
     pageCollectionItemId,
@@ -498,6 +518,8 @@ export function generateLinkHref(
           // Prefix with /xxiv/preview in preview mode
           if (isPreview && href) {
             href = `/xxiv/preview${href}`;
+          } else if (href) {
+            href = prefixInternalSiteHref(href, siteBasePath);
           }
         }
       }

@@ -40,6 +40,7 @@ interface PublishPopoverProps {
   isDisabled?: boolean;
   onPublishSuccess: () => void;
   xxivSiteId?: string | null;
+  xxivSiteSlug?: string | null;
   xxivLiveUrl?: string | null;
   onXxivPublishSuccess?: (url: string) => void;
 }
@@ -52,6 +53,7 @@ export default function PublishPopover({
   isDisabled = false,
   onPublishSuccess,
   xxivSiteId = null,
+  xxivSiteSlug = null,
   xxivLiveUrl = null,
   onXxivPublishSuccess,
 }: PublishPopoverProps) {
@@ -68,9 +70,10 @@ export default function PublishPopover({
   const { getSettingByKey, updateSetting } = useSettingsStore();
   const publishedAt = getSettingByKey('published_at');
 
-  const buildPublishedSiteUrl = useCallback((siteUrl: string | null, pagePath: string) => {
+  const buildPublishedSiteUrl = useCallback((siteUrl: string | null, siteSlug: string | null, pagePath: string) => {
     if (!siteUrl) {
-      return `${baseUrl}${pagePath}`;
+      const slugPrefix = siteSlug ? `/${siteSlug}` : '';
+      return `${baseUrl}${slugPrefix}${pagePath}`;
     }
 
     try {
@@ -141,7 +144,7 @@ export default function PublishPopover({
         }
 
         const deployedSiteUrl = typeof deployJson?.url === 'string' ? deployJson.url : liveUrl;
-        resolvedLiveUrl = buildPublishedSiteUrl(deployedSiteUrl, publishedUrl);
+        resolvedLiveUrl = buildPublishedSiteUrl(deployedSiteUrl, xxivSiteSlug, publishedUrl);
         setLiveUrl(resolvedLiveUrl || null);
         onXxivPublishSuccess?.(resolvedLiveUrl || '');
       } else {
@@ -171,10 +174,10 @@ export default function PublishPopover({
     } finally {
       setIsPublishing(false);
     }
-  }, [baseUrl, buildPublishedSiteUrl, liveUrl, onPublishSuccess, onXxivPublishSuccess, publishedUrl, setIsPublishing, updateSetting, xxivSiteId]);
+  }, [baseUrl, buildPublishedSiteUrl, liveUrl, onPublishSuccess, onXxivPublishSuccess, publishedUrl, setIsPublishing, updateSetting, xxivSiteId, xxivSiteSlug]);
 
   const handleCopyUrl = useCallback(async () => {
-    const urlToCopy = buildPublishedSiteUrl(liveUrl, publishedUrl);
+    const urlToCopy = buildPublishedSiteUrl(liveUrl, xxivSiteSlug, publishedUrl);
     if (!urlToCopy) return;
 
     try {
@@ -183,7 +186,9 @@ export default function PublishPopover({
     } catch {
       toast.error('Failed to copy URL');
     }
-  }, [buildPublishedSiteUrl, liveUrl, publishedUrl]);
+  }, [buildPublishedSiteUrl, liveUrl, publishedUrl, xxivSiteSlug]);
+
+  const resolvedPublishedUrl = buildPublishedSiteUrl(liveUrl || xxivLiveUrl, xxivSiteSlug, publishedUrl);
 
   const handleRevertConfirm = useCallback(async () => {
     try {
@@ -216,11 +221,11 @@ export default function PublishPopover({
           <div>
             <Label>
               <a
-                href={buildPublishedSiteUrl(liveUrl || xxivLiveUrl, publishedUrl)}
+                href={resolvedPublishedUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                {buildPublishedSiteUrl(liveUrl || xxivLiveUrl, publishedUrl)}
+                {resolvedPublishedUrl}
               </a>
             </Label>
             <span className="text-popover-foreground text-[10px]">
@@ -254,18 +259,18 @@ export default function PublishPopover({
               <div className="text-sm font-medium text-emerald-400">Site is live!</div>
               <a
                 className="mt-1 block break-all text-xs text-emerald-300 underline underline-offset-2"
-                href={liveUrl || xxivLiveUrl || undefined}
+                href={resolvedPublishedUrl || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                {(liveUrl || xxivLiveUrl || '').replace(/^https?:\/\//, '')}
+                {resolvedPublishedUrl.replace(/^https?:\/\//, '')}
               </a>
               <div className="mt-3 flex gap-2">
                 <Button size="xs" variant="secondary" onClick={handleCopyUrl}>Copy URL</Button>
                 <Button
                   size="xs"
                   onClick={() => {
-                    const target = liveUrl || xxivLiveUrl;
+                    const target = resolvedPublishedUrl;
                     if (target) window.open(target, '_blank');
                   }}
                 >

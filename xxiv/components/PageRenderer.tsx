@@ -108,6 +108,7 @@ interface PageRendererProps {
   page: Page;
   layers: Layer[];
   components: Component[];
+  siteBasePath?: string;
   generatedCss?: string;
   colorVariablesCss?: string;
   collectionItem?: CollectionItemWithValues;
@@ -148,6 +149,7 @@ export default async function PageRenderer({
   page,
   layers,
   components,
+  siteBasePath,
   generatedCss,
   colorVariablesCss,
   collectionItem,
@@ -432,6 +434,7 @@ export default async function PageRenderer({
           layers={childLayers}
           isEditMode={false}
           isPublished={page.is_published}
+          siteBasePath={siteBasePath}
           pageCollectionItemId={collectionItem?.id}
           pageCollectionItemData={collectionItem?.values || undefined}
           hiddenLayerInfo={hiddenLayerInfo}

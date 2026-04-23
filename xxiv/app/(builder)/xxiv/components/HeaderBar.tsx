@@ -80,9 +80,10 @@ export default function HeaderBar({
   onPublishSuccess,
   isSettingsRoute = false,
 }: HeaderBarProps) {
-  const buildPublishedSiteUrl = (siteUrl: string | null, pagePath: string) => {
+  const buildPublishedSiteUrl = (siteUrl: string | null, siteSlug: string | null, pagePath: string) => {
     if (!siteUrl) {
-      return `${baseUrl}${pagePath}`;
+      const slugPrefix = siteSlug ? `/${siteSlug}` : '';
+      return `${baseUrl}${slugPrefix}${pagePath}`;
     }
 
     try {
@@ -146,6 +147,7 @@ export default function HeaderBar({
   const storeXxivSiteId = useEditorStore((state) => state.xxivCollaborationSiteId);
   const [xxivSiteId, setXxivSiteId] = useState<string | null>(null);
   const [xxivLiveUrl, setXxivLiveUrl] = useState<string | null>(null);
+  const [xxivSiteSlug, setXxivSiteSlug] = useState<string | null>(null);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
 
   // Get current host after mount
@@ -164,6 +166,7 @@ export default function HeaderBar({
 
         const data = await response.json();
         setXxivLiveUrl(typeof data?.live_url === 'string' ? data.live_url : null);
+        setXxivSiteSlug(typeof data?.slug === 'string' ? data.slug : null);
       } catch (error) {
         console.error('Failed to load XXIV site info:', error);
       }
@@ -305,8 +308,8 @@ export default function HeaderBar({
 
   const liveSiteUrl = useMemo(() => {
     if (!publishedUrl && !xxivLiveUrl) return baseUrl;
-    return buildPublishedSiteUrl(xxivLiveUrl, publishedUrl);
-  }, [baseUrl, publishedUrl, xxivLiveUrl]);
+    return buildPublishedSiteUrl(xxivLiveUrl, xxivSiteSlug, publishedUrl);
+  }, [baseUrl, publishedUrl, xxivLiveUrl, xxivSiteSlug]);
 
   const liveSiteLabel = useMemo(() => {
     return liveSiteUrl || baseUrl;
@@ -656,6 +659,7 @@ export default function HeaderBar({
             publishedUrl={publishedUrl}
             onPublishSuccess={onPublishSuccess}
             xxivSiteId={xxivSiteId}
+            xxivSiteSlug={xxivSiteSlug}
             xxivLiveUrl={xxivLiveUrl}
             onXxivPublishSuccess={setXxivLiveUrl}
           />
