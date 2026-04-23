@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getTokenById, deleteToken } from '@/lib/repositories/mcpTokenRepository';
 import { noCache } from '@/lib/api-response';
+import { getAuthUser } from '@/lib/supabase-auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -14,8 +15,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const auth = await getAuthUser();
+    if (!auth) {
+      return noCache({ error: 'Not authenticated' }, 401);
+    }
+
     const { id } = await params;
-    const token = await getTokenById(id);
+    const token = await getTokenById(id, auth.user.id);
 
     if (!token) {
       return noCache({ error: 'MCP token not found' }, 404);
@@ -40,14 +46,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const auth = await getAuthUser();
+    if (!auth) {
+      return noCache({ error: 'Not authenticated' }, 401);
+    }
+
     const { id } = await params;
 
-    const existing = await getTokenById(id);
+    const existing = await getTokenById(id, auth.user.id);
     if (!existing) {
       return noCache({ error: 'MCP token not found' }, 404);
     }
 
-    await deleteToken(id);
+    await deleteToken(id, auth.user.id);
 
     return noCache({ data: { deleted: true, id } });
   } catch (error) {

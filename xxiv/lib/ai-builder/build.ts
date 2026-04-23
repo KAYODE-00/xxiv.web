@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { createAiBuilderMcpClient, callMcpTool } from '@/lib/ai-builder/mcp';
+import { createToken } from '@/lib/repositories/mcpTokenRepository';
 import type {
   AiBuilderCollectionField,
   AiBuilderPage,
@@ -112,21 +113,12 @@ export async function ensureSiteTokens(site: XxivSiteRecord, origin: string) {
     throw new Error('Supabase not configured');
   }
 
-  const token = `ymc_${crypto.randomUUID().replace(/-/g, '')}${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
-  const tokenPrefix = token.slice(0, 12);
+  const createdToken = await createToken(`${site.name} AI Builder`, {
+    ownerUserId: site.user_id,
+    isSystemGenerated: true,
+  });
+  const token = createdToken.token;
   const url = `${origin}/xxiv/mcp/${token}`;
-
-  const { error: tokenError } = await admin
-    .from('mcp_tokens')
-    .insert({
-      name: `${site.name} AI Builder`,
-      token,
-      token_prefix: tokenPrefix,
-    });
-
-  if (tokenError) {
-    throw new Error(`Failed to create MCP token: ${tokenError.message}`);
-  }
 
   const { error: siteError } = await admin
     .from('xxiv_sites')

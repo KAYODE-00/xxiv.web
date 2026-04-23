@@ -17,7 +17,10 @@ async function provisionXxivSite(userId: string, name: string, requestHeaders: H
   }
 
   const site = await createXxivSiteRecord(userId, name);
-  const mcpToken = await createToken(`${name.trim()} AI Builder`);
+  const mcpToken = await createToken(`${name.trim()} AI Builder`, {
+    ownerUserId: userId,
+    isSystemGenerated: true,
+  });
   const protocol = requestHeaders.get('x-forwarded-proto') || 'http';
   const host = requestHeaders.get('host') || 'localhost:3000';
   const mcpUrl = `${protocol}://${host}/xxiv/mcp/${mcpToken.token}`;

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAllTokens, createToken } from '@/lib/repositories/mcpTokenRepository';
 import { noCache } from '@/lib/api-response';
+import { getAuthUser } from '@/lib/supabase-auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -11,7 +12,12 @@ export const revalidate = 0;
  */
 export async function GET() {
   try {
-    const tokens = await getAllTokens();
+    const auth = await getAuthUser();
+    if (!auth) {
+      return noCache({ error: 'Not authenticated' }, 401);
+    }
+
+    const tokens = await getAllTokens(auth.user.id);
 
     return noCache({ data: tokens });
   } catch (error) {
@@ -29,6 +35,11 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
+    const auth = await getAuthUser();
+    if (!auth) {
+      return noCache({ error: 'Not authenticated' }, 401);
+    }
+
     const body = await request.json();
     const { name } = body;
 
@@ -36,7 +47,7 @@ export async function POST(request: NextRequest) {
       return noCache({ error: 'Name is required' }, 400);
     }
 
-    const token = await createToken(name.trim());
+    const token = await createToken(name.trim(), { ownerUserId: auth.user.id });
 
     const host = request.headers.get('host') || 'localhost:3000';
     const protocol = request.headers.get('x-forwarded-proto') || 'http';
