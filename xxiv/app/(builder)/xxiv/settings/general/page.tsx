@@ -193,7 +193,7 @@ export default function GeneralSettingsPage() {
   // Save SEO settings
   const saveSeoSettings = useCallback(async () => {
     setIsSaving(true);
-    await saveSettings({
+    const result = await saveSettings({
       sitemap: sitemapSettings,
       robots_txt: robotsTxt,
       llms_txt: llmsTxt,
@@ -201,32 +201,48 @@ export default function GeneralSettingsPage() {
       google_site_verification: googleSiteVerification,
       global_canonical_url: globalCanonicalUrl,
     });
+    if (result.success) {
+      toast.success('SEO settings saved');
+    } else {
+      toast.error('Failed to save SEO settings', {
+        description: result.error,
+      });
+    }
     setIsSaving(false);
   }, [saveSettings, sitemapSettings, robotsTxt, llmsTxt, gaMeasurementId, googleSiteVerification, globalCanonicalUrl]);
 
   // Save custom code settings
   const saveCustomCodeSettings = useCallback(async () => {
     setIsSavingCustomCode(true);
-    await saveSettings({
+    const result = await saveSettings({
       custom_code_head: customCodeHead,
       custom_code_body: customCodeBody,
     });
+    if (result.success) {
+      toast.success('Custom code saved');
+    } else {
+      toast.error('Failed to save custom code', {
+        description: result.error,
+      });
+    }
     setIsSavingCustomCode(false);
   }, [saveSettings, customCodeHead, customCodeBody]);
 
   // Save website settings
   const saveWebsiteSettings = useCallback(async () => {
     setIsSavingWebsite(true);
-    const success = await saveSettings({
+    const result = await saveSettings({
       xxiv_badge: xxivBadge,
       timezone,
       favicon_asset_id: faviconAssetId || null,
       web_clip_asset_id: webClipAssetId || null,
     });
-    if (success) {
+    if (result.success) {
       toast.success('Website settings saved');
     } else {
-      toast.error('Failed to save website settings');
+      toast.error('Failed to save website settings', {
+        description: result.error,
+      });
     }
     setIsSavingWebsite(false);
   }, [saveSettings, xxivBadge, timezone, faviconAssetId, webClipAssetId]);

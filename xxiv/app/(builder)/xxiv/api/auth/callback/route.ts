@@ -3,6 +3,8 @@ import { createServerClient } from '@supabase/ssr';
 import { CookieOptions } from '@supabase/ssr';
 import { credentials } from '@/lib/credentials';
 import { cookies } from 'next/headers';
+import { parseSupabaseConfig } from '@/lib/supabase-config-parser';
+import type { SupabaseConfig } from '@/types';
 
 /**
  * GET /xxiv/api/auth/callback
@@ -17,11 +19,7 @@ export async function GET(request: NextRequest) {
   if (code) {
     try {
       // Get Supabase config
-      const config = await credentials.get<{
-        url: string;
-        anonKey: string;
-        serviceRoleKey: string;
-      }>('supabase_config');
+      const config = await credentials.get<SupabaseConfig>('supabase_config');
 
       if (!config) {
         return NextResponse.redirect(
@@ -29,12 +27,14 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      const parsed = parseSupabaseConfig(config);
+
       const cookieStore = await cookies();
 
       // Create Supabase client
       const supabase = createServerClient(
-        config.url,
-        config.anonKey,
+        parsed.projectUrl,
+        parsed.anonKey,
         {
           cookies: {
             get(name: string) {

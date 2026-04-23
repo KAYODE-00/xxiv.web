@@ -27,7 +27,7 @@ interface SettingsActions {
   updateSetting: (key: string, value: any) => void;
 
   // Save settings to server and update local state
-  saveSettings: (settings: Record<string, any>) => Promise<boolean>;
+  saveSettings: (settings: Record<string, any>) => Promise<{ success: boolean; error?: string }>;
 
   // State management
   setError: (error: string | null) => void;
@@ -91,17 +91,18 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       const response = await settingsApi.batchUpdate(settings);
       if (response.error) {
         set({ error: response.error });
-        return false;
+        return { success: false, error: response.error };
       }
       // Update local state for all settings
       Object.entries(settings).forEach(([key, value]) => {
         get().updateSetting(key, value);
       });
-      return true;
+      set({ error: null });
+      return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save settings';
       set({ error: message });
-      return false;
+      return { success: false, error: message };
     }
   },
 

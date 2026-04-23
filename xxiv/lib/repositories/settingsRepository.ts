@@ -7,6 +7,67 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { Setting } from '@/types';
 
+async function writeSettingWithoutConflict(
+  key: string,
+  value: any
+): Promise<Setting> {
+  const client = await getSupabaseAdmin();
+  if (!client) {
+    throw new Error('Failed to initialize Supabase client');
+  }
+
+  const now = new Date().toISOString();
+
+  const { data: existingRows, error: existingError } = await client
+    .from('settings')
+    .select('*')
+    .eq('key', key)
+    .limit(1);
+
+  if (existingError) {
+    throw new Error(`Failed to fetch existing setting "${key}": ${existingError.message}`);
+  }
+
+  if ((existingRows?.length ?? 0) > 0) {
+    const { data: updatedRows, error: updateError } = await client
+      .from('settings')
+      .update({
+        value,
+        updated_at: now,
+      })
+      .eq('key', key)
+      .select('*')
+      .limit(1);
+
+    if (updateError) {
+      throw new Error(`Failed to update setting "${key}": ${updateError.message}`);
+    }
+
+    const updated = updatedRows?.[0];
+    if (!updated) {
+      throw new Error(`Failed to update setting "${key}": no row returned`);
+    }
+
+    return updated;
+  }
+
+  const { data: inserted, error: insertError } = await client
+    .from('settings')
+    .insert({
+      key,
+      value,
+      updated_at: now,
+    })
+    .select()
+    .single();
+
+  if (insertError) {
+    throw new Error(`Failed to insert setting "${key}": ${insertError.message}`);
+  }
+
+  return inserted;
+}
+
 /**
  * Get all settings
  *
@@ -100,28 +161,7 @@ export async function getSettingsByKeys(keys: string[]): Promise<Record<string, 
  * @returns Promise resolving to the created/updated setting
  */
 export async function setSetting(key: string, value: any): Promise<Setting> {
-  const client = await getSupabaseAdmin();
-  if (!client) {
-    throw new Error('Failed to initialize Supabase client');
-  }
-
-  const { data, error } = await client
-    .from('settings')
-    .upsert({
-      key,
-      value,
-      updated_at: new Date().toISOString(),
-    }, {
-      onConflict: 'key',
-    })
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to set setting: ${error.message}`);
-  }
-
-  return data;
+  return writeSettingWithoutConflict(key, value);
 }
 
 /**
@@ -160,19 +200,7 @@ export async function setSettings(settings: Record<string, any>): Promise<number
       continue;
     }
 
-    const { error } = await client
-      .from('settings')
-      .upsert({
-        key,
-        value,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'key',
-      });
-
-    if (error) {
-      throw new Error(`Failed to set setting "${key}": ${error.message}`);
-    }
+    await writeSettingWithoutConflict(key, value);
   }
 
   return entries.length;
