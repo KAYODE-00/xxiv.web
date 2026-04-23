@@ -9,6 +9,74 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 
+async function provisionXxivSite(userId: string, name: string, requestHeaders: Headers) {
+  const admin = await getSupabaseAdmin();
+
+  if (!admin) {
+    throw new Error('Supabase not configured');
+  }
+
+  const site = await createXxivSiteRecord(userId, name);
+  const mcpToken = await createToken(`${name.trim()} AI Builder`);
+  const protocol = requestHeaders.get('x-forwarded-proto') || 'http';
+  const host = requestHeaders.get('host') || 'localhost:3000';
+  const mcpUrl = `${protocol}://${host}/xxiv/mcp/${mcpToken.token}`;
+
+  await admin
+    .from('xxiv_sites')
+    .update({
+      mcp_token: mcpToken.token,
+      mcp_url: mcpUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', site.id);
+
+  const { data: page, error: pageError } = await admin
+    .from('pages')
+    .insert({
+      name: 'Home',
+      slug: '',
+      page_folder_id: null,
+      is_index: true,
+      is_dynamic: false,
+      depth: 0,
+      order: 0,
+      is_published: false,
+      xxiv_site_id: site.id,
+      settings: {
+        xxiv: {
+          site_id: site.id,
+        },
+      },
+    })
+    .select()
+    .single();
+
+  if (pageError) throw pageError;
+
+  await admin.from('page_layers').insert({
+    page_id: page.id,
+    layers: [
+      {
+        id: 'body',
+        name: 'body',
+        classes: '',
+        children: [],
+      },
+    ],
+    is_published: false,
+  });
+
+  await setXxivSiteHomePage(site.id, page.id);
+  revalidatePath('/dashboard');
+
+  return {
+    siteId: site.id,
+    homePageId: page.id,
+    editorUrl: '/xxiv/pages/' + page.id + '?xxiv_site_id=' + site.id,
+  };
+}
+
 async function buildSiteLiveUrl(
   siteId: string,
   siteSlug?: string | null,
@@ -148,78 +216,26 @@ export async function getSiteById(siteId: string) {
 
 export async function createSite(formData: FormData) {
   const user = await requireAuthUser();
-  const admin = await getSupabaseAdmin();
   const requestHeaders = await headers();
-
-  if (!admin) {
-    throw new Error('Supabase not configured');
-  }
 
   const name = formData.get('name') as string;
   if (!name?.trim()) {
     throw new Error('Site name is required');
   }
 
-  const site = await createXxivSiteRecord(user.id, name);
-  const mcpToken = await createToken(`${name.trim()} AI Builder`);
-  const protocol = requestHeaders.get('x-forwarded-proto') || 'http';
-  const host = requestHeaders.get('host') || 'localhost:3000';
-  const mcpUrl = `${protocol}://${host}/xxiv/mcp/${mcpToken.token}`;
+  const result = await provisionXxivSite(user.id, name, requestHeaders);
+  redirect(result.editorUrl);
+}
 
-  await admin
-    .from('xxiv_sites')
-    .update({
-      mcp_token: mcpToken.token,
-      mcp_url: mcpUrl,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', site.id);
+export async function createSiteDraft(name: string) {
+  const user = await requireAuthUser();
+  const requestHeaders = await headers();
 
-  // Create home page in Xxiv (no folder)
-  const { data: page, error: pageError } = await admin
-    .from('pages')
-    .insert({
-      name: 'Home',
-      slug: '',
-      page_folder_id: null,
-      is_index: true,
-      is_dynamic: false,
-      depth: 0,
-      order: 0,
-      is_published: false,
-      xxiv_site_id: site.id,
-      settings: {
-        xxiv: {
-          site_id: site.id,
-        },
-      },
-    })
-    .select()
-    .single();
+  if (!name?.trim()) {
+    throw new Error('Site name is required');
+  }
 
-  if (pageError) throw pageError;
-
-  // Create empty page layers
-  await admin.from('page_layers').insert({
-    page_id: page.id,
-    layers: [
-      {
-        id: 'body',
-        name: 'body',
-        classes: '',
-        children: [],
-      },
-    ],
-    is_published: false,
-  });
-
-  await setXxivSiteHomePage(site.id, page.id);
-
-  // Keep dashboard list fresh if user navigates back
-  revalidatePath('/dashboard');
-
-  // Go directly to Xxiv editor
-  redirect('/xxiv/pages/' + page.id + '?xxiv_site_id=' + site.id);
+  return provisionXxivSite(user.id, name.trim(), requestHeaders);
 }
 
 export async function deleteSite(siteId: string) {

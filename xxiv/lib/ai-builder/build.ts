@@ -1,6 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { createAiBuilderMcpClient, callMcpTool } from '@/lib/ai-builder/mcp';
-import type { AiBuilderPage, AiBuilderProgressStage, AiBuilderSection, AiBuilderSitePlan } from '@/lib/ai-builder/types';
+import type {
+  AiBuilderCollectionField,
+  AiBuilderPage,
+  AiBuilderProgressStage,
+  AiBuilderSection,
+  AiBuilderSitePlan,
+} from '@/lib/ai-builder/types';
 import { setXxivSiteHomePage } from '@/lib/xxiv/site-management';
 
 export type XxivSiteRecord = {
@@ -354,6 +360,87 @@ async function addContactForm(
   }, onError);
 }
 
+async function createCmsCollections(
+  client: Awaited<ReturnType<typeof createAiBuilderMcpClient>>['client'],
+  collections: AiBuilderSitePlan['collections'],
+  onError: (message: string) => Promise<void>,
+) {
+  if (!collections || collections.length === 0) {
+    return;
+  }
+
+  const collectionIdByName = new Map<string, string>();
+  const fieldIdsByCollectionName = new Map<string, Array<{ field: AiBuilderCollectionField; id: string }>>();
+
+  for (const collection of collections) {
+    const createdCollection = await safeToolCall(client, 'create_collection', {
+      name: collection.name,
+    }, onError) as { id?: string } | null;
+
+    if (!createdCollection?.id) {
+      continue;
+    }
+
+    collectionIdByName.set(collection.name, createdCollection.id);
+  }
+
+  for (const collection of collections) {
+    const collectionId = collectionIdByName.get(collection.name);
+    if (!collectionId) continue;
+
+    const createdFields: Array<{ field: AiBuilderCollectionField; id: string }> = [];
+
+    for (const field of collection.fields) {
+      const fieldPayload: Record<string, unknown> = {
+        collection_id: collectionId,
+        name: field.name,
+        type: field.type,
+      };
+
+      if (field.key) {
+        fieldPayload.key = field.key;
+      }
+
+      if (field.referenceCollectionName) {
+        const referenceCollectionId = collectionIdByName.get(field.referenceCollectionName);
+        if (referenceCollectionId) {
+          fieldPayload.reference_collection_id = referenceCollectionId;
+        }
+      }
+
+      const createdField = await safeToolCall(client, 'add_collection_field', fieldPayload, onError) as { id?: string } | null;
+      if (createdField?.id) {
+        createdFields.push({ field, id: createdField.id });
+      }
+    }
+
+    fieldIdsByCollectionName.set(collection.name, createdFields);
+  }
+
+  for (const collection of collections) {
+    const collectionId = collectionIdByName.get(collection.name);
+    const createdFields = fieldIdsByCollectionName.get(collection.name) || [];
+    if (!collectionId || collection.items.length === 0 || createdFields.length === 0) {
+      continue;
+    }
+
+    for (const item of collection.items) {
+      const values: Record<string, unknown> = {};
+      for (const { field, id } of createdFields) {
+        const rawValue = item[field.key || field.name] ?? item[field.name];
+        if (rawValue !== undefined) {
+          values[id] = rawValue;
+        }
+      }
+
+      await safeToolCall(client, 'create_collection_item', {
+        collection_id: collectionId,
+        values,
+      }, onError);
+    }
+  }
+}
+
 async function preparePage(
   client: Awaited<ReturnType<typeof createAiBuilderMcpClient>>['client'],
   pageId: string,
@@ -470,10 +557,19 @@ export async function runAiSiteBuild(params: {
 
     await safeToolCall(mcp.client, 'set_settings_batch', {
       settings: {
-        site_name: sitePlan.siteName,
-        site_description: `${sitePlan.siteName} website`,
+        site_name: sitePlan.globalSeo?.siteTitle || sitePlan.siteName,
+        site_description: sitePlan.globalSeo?.siteDescription || `${sitePlan.siteName} website`,
       },
     }, onError);
+
+    if (sitePlan.collections.length > 0) {
+      emit('progress', {
+        stage: 'creating-pages' satisfies AiBuilderProgressStage,
+        message: `Creating ${sitePlan.collections.length} CMS collection${sitePlan.collections.length === 1 ? '' : 's'}...`,
+      });
+
+      await createCmsCollections(mcp.client, sitePlan.collections, onError);
+    }
 
     let homePageId = site.home_page_id;
     let firstPageId: string | null = null;

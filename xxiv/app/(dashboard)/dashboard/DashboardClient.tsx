@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase-browser';
 import CreateSiteModal from '@/components/xxiv/CreateSiteModal';
-import AiBuilderButton from '@/components/ai-builder/AiBuilderButton';
 import { deleteSite, openSiteEditor } from '../actions/sites';
 
 type SiteRow = {
@@ -511,11 +510,6 @@ function SiteCard({
           >
             Edit
           </button>
-
-          <AiBuilderButton
-            projectId={site.id}
-            className="h-[42px] flex-1 rounded-[10px] border border-[#1a1a1a] bg-transparent px-3 text-[13px] font-medium text-white hover:bg-white/5"
-          />
 
           <div style={{ position: 'relative' }}>
             <button

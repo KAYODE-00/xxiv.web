@@ -37,7 +37,6 @@ import Icon from '@/components/ui/icon';
 import { Separator } from '@/components/ui/separator';
 import { BackupRestoreDialog } from '@/components/project/BackupRestoreDialog';
 import { isCloudVersion } from '@/lib/utils';
-import AiBuilderButton from '@/components/ai-builder/AiBuilderButton';
 
 interface HeaderBarProps {
   user: User | null;
@@ -625,13 +624,6 @@ export default function HeaderBar({
           </div>
 
           {/* Preview button */}
-          {xxivSiteId && (
-            <AiBuilderButton
-              projectId={xxivSiteId}
-              className="h-8 rounded-lg border border-white/10 bg-white/5 px-3 text-xs text-white hover:bg-white/10"
-            />
-          )}
-
           <Button
             size="sm"
             variant="secondary"
