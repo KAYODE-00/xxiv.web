@@ -1144,79 +1144,378 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
     onClose();
   };
 
-  const handleDeleteLayout = async (layoutKey: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering the add layout action
+  const insertLibraryTemplateLayer = async (templateLayer: Layer, templateKey: string) => {
+    if (editingComponentId) {
+      const layers = componentDrafts[editingComponentId] || [];
+      const isAddingSection = templateLayer.name === 'section';
+      let parentId = selectedLayerId || layers[0]?.id || 'body';
+      if (isAddingSection) {
+        parentId = layers[0]?.id || 'body';
+      }
+
+      const existingSettingsIds = collectAllSettingsIds(layers);
+      const usedSettingsIds = new Set<string>(existingSettingsIds);
+      const idMappings = new Map<string, string>();
+
+      const normalizeLayerWithUniqueIds = (layer: any): any => {
+        const normalized = { ...layer };
+        if (normalized.settings?.id) {
+          const originalId = normalized.settings.id;
+          const uniqueId = generateUniqueSettingsId(originalId, usedSettingsIds);
+          usedSettingsIds.add(uniqueId);
+          normalized.settings = {
+            ...normalized.settings,
+            id: uniqueId,
+          };
+          if (originalId !== uniqueId) {
+            idMappings.set(originalId, uniqueId);
+          }
+        }
+        if (normalized.children) {
+          normalized.children = normalized.children.map((child: any) => normalizeLayerWithUniqueIds(child));
+        }
+        return normalized;
+      };
+
+      const updateForAttributes = (layer: any): any => {
+        const updated = { ...layer };
+        if (updated.attributes?.for && idMappings.has(updated.attributes.for)) {
+          updated.attributes = {
+            ...updated.attributes,
+            for: idMappings.get(updated.attributes.for),
+          };
+        }
+        if (updated.children) {
+          updated.children = updated.children.map((child: any) => updateForAttributes(child));
+        }
+        return updated;
+      };
+
+      let newLayer = normalizeLayerWithUniqueIds(templateLayer);
+      if (idMappings.size > 0) {
+        newLayer = updateForAttributes(newLayer);
+      }
+
+      if (hasInlinedComponents(newLayer)) {
+        const createdComponents = new Map<string, string>();
+        newLayer = await restoreInlinedComponents(
+          newLayer,
+          components.map(c => ({ id: c.id, name: c.name })),
+          createdComponents
+        );
+
+        if (createdComponents.size > 0) {
+          await loadComponents();
+        }
+      }
+
+      const addLayerToTree = (tree: any[], targetId: string, parentNode: any = null): { success: boolean; newLayers: any[]; newLayerId: string; parentToExpand: string | null } => {
+        for (let i = 0; i < tree.length; i++) {
+          const node = tree[i];
+          if (node.id === targetId) {
+            if (canHaveChildren(node)) {
+              const updatedNode = {
+                ...node,
+                children: [...(node.children || []), newLayer]
+              };
+              return {
+                success: true,
+                newLayers: [...tree.slice(0, i), updatedNode, ...tree.slice(i + 1)],
+                newLayerId: newLayer.id,
+                parentToExpand: targetId
+              };
+            }
+
+            return {
+              success: true,
+              newLayers: [...tree.slice(0, i + 1), newLayer, ...tree.slice(i + 1)],
+              newLayerId: newLayer.id,
+              parentToExpand: parentNode ? parentNode.id : null
+            };
+          }
+          if (node.children) {
+            const result = addLayerToTree(node.children, targetId, node);
+            if (result.success) {
+              return {
+                success: true,
+                newLayers: [
+                  ...tree.slice(0, i),
+                  { ...node, children: result.newLayers },
+                  ...tree.slice(i + 1)
+                ],
+                newLayerId: result.newLayerId,
+                parentToExpand: result.parentToExpand
+              };
+            }
+          }
+        }
+        return { success: false, newLayers: tree, newLayerId: '', parentToExpand: null };
+      };
+
+      const result = addLayerToTree(layers, parentId);
+      if (result.success) {
+        let finalLayers = result.newLayers;
+        if (result.parentToExpand) {
+          finalLayers = assignOrderClassToNewLayer(
+            result.newLayers,
+            result.parentToExpand,
+            result.newLayerId,
+            activeBreakpoint
+          );
+        }
+
+        updateComponentDraft(editingComponentId, finalLayers);
+        setSelectedLayerId(result.newLayerId);
+        if (result.parentToExpand) {
+          window.dispatchEvent(new CustomEvent('expandLayer', {
+            detail: { layerId: result.parentToExpand }
+          }));
+        }
+      }
+
+      onClose();
+      return;
+    }
+
+    if (!currentPageId) return;
+
+    const isAddingSection = templateLayer.name === 'section';
+    let parentId = selectedLayerId || 'body';
+    if (isAddingSection) {
+      parentId = 'body';
+    }
+
+    const draft = usePagesStore.getState().draftsByPageId[currentPageId];
+    if (!draft) {
+      const page = usePagesStore.getState().pages.find(p => p.id === currentPageId);
+      if (!page) return;
+    }
+
+    const existingSettingsIds = collectAllSettingsIds(draft?.layers || []);
+    const usedSettingsIds = new Set<string>(existingSettingsIds);
+    const idMappings = new Map<string, string>();
+
+    const normalizeLayerWithUniqueIds = (layer: any): any => {
+      const normalized = { ...layer };
+      if (normalized.settings?.id) {
+        const originalId = normalized.settings.id;
+        const uniqueId = generateUniqueSettingsId(originalId, usedSettingsIds);
+        usedSettingsIds.add(uniqueId);
+        normalized.settings = {
+          ...normalized.settings,
+          id: uniqueId,
+        };
+        if (originalId !== uniqueId) {
+          idMappings.set(originalId, uniqueId);
+        }
+      }
+      if (normalized.children) {
+        normalized.children = normalized.children.map((child: any) => normalizeLayerWithUniqueIds(child));
+      }
+      return normalized;
+    };
+
+    const updateForAttributes = (layer: any): any => {
+      const updated = { ...layer };
+      if (updated.attributes?.for && idMappings.has(updated.attributes.for)) {
+        updated.attributes = {
+          ...updated.attributes,
+          for: idMappings.get(updated.attributes.for),
+        };
+      }
+      if (updated.children) {
+        updated.children = updated.children.map((child: any) => updateForAttributes(child));
+      }
+      return updated;
+    };
+
+    let newLayer = normalizeLayerWithUniqueIds(templateLayer);
+    if (idMappings.size > 0) {
+      newLayer = updateForAttributes(newLayer);
+    }
+
+    if (hasInlinedComponents(newLayer)) {
+      const createdComponents = new Map<string, string>();
+      newLayer = await restoreInlinedComponents(
+        newLayer,
+        components.map(c => ({ id: c.id, name: c.name })),
+        createdComponents
+      );
+
+      if (createdComponents.size > 0) {
+        await loadComponents();
+      }
+    }
+
+    const findLayerWithParent = (tree: any[], id: string, parent: any | null = null): { layer: any; parent: any | null } | null => {
+      for (const node of tree) {
+        if (node.id === id) return { layer: node, parent };
+        if (node.children) {
+          const found = findLayerWithParent(node.children, id, node);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const currentDraft = usePagesStore.getState().draftsByPageId[currentPageId] || {
+      id: `draft-${currentPageId}`,
+      page_id: currentPageId,
+      layers: [],
+      is_published: false,
+      created_at: new Date().toISOString(),
+      deleted_at: null,
+    };
+
+    const result = findLayerWithParent(currentDraft.layers, parentId);
+    let newLayers;
+    let parentToExpand: string | null = null;
+
+    if (!result) {
+      newLayers = [...currentDraft.layers, newLayer];
+    } else if (canHaveChildren(result.layer)) {
+      const updateLayerInTree = (tree: any[], layerId: string, updater: (l: any) => any): any[] => {
+        return tree.map((node) => {
+          if (node.id === layerId) {
+            return updater(node);
+          }
+          if (node.children && node.children.length > 0) {
+            return { ...node, children: updateLayerInTree(node.children, layerId, updater) };
+          }
+          return node;
+        });
+      };
+
+      newLayers = updateLayerInTree(currentDraft.layers, parentId, (parent) => ({
+        ...parent,
+        children: [...(parent.children || []), newLayer],
+      }));
+      parentToExpand = parentId;
+    } else if (result.parent) {
+      const updateLayerInTree = (tree: any[], layerId: string, updater: (l: any) => any): any[] => {
+        return tree.map((node) => {
+          if (node.id === layerId) {
+            return updater(node);
+          }
+          if (node.children && node.children.length > 0) {
+            return { ...node, children: updateLayerInTree(node.children, layerId, updater) };
+          }
+          return node;
+        });
+      };
+
+      newLayers = updateLayerInTree(currentDraft.layers, result.parent.id, (grandparent) => {
+        const children = grandparent.children || [];
+        const selectedIndex = children.findIndex((c: any) => c.id === parentId);
+        const newChildren = [...children];
+        newChildren.splice(selectedIndex + 1, 0, newLayer);
+        return { ...grandparent, children: newChildren };
+      });
+      parentToExpand = result.parent.id;
+    } else {
+      const selectedIndex = currentDraft.layers.findIndex((l: any) => l.id === parentId);
+      newLayers = [...currentDraft.layers];
+      newLayers.splice(selectedIndex + 1, 0, newLayer);
+    }
+
+    let finalLayers = newLayers;
+    if (parentToExpand) {
+      finalLayers = assignOrderClassToNewLayer(
+        newLayers,
+        parentToExpand,
+        newLayer.id,
+        activeBreakpoint
+      );
+    }
+
+    usePagesStore.getState().setDraftLayers(currentPageId, finalLayers);
+
+    if (liveLayerUpdates) {
+      const found = findLayerWithParent(finalLayers, newLayer.id);
+      const actualParentId = found?.parent?.id || null;
+      liveLayerUpdates.broadcastLayerAdd(currentPageId, actualParentId, templateKey, newLayer);
+    }
+
+    setSelectedLayerId(newLayer.id);
+
+    if (parentToExpand) {
+      window.dispatchEvent(new CustomEvent('expandLayer', {
+        detail: { layerId: parentToExpand }
+      }));
+    }
+
+    onClose();
+  };
+
+  const handleAddDbLayout = async (template: BuilderTemplateLibraryItem) => {
+    const layoutTemplate = instantiateTemplate(template.template);
+    await insertLibraryTemplateLayer(layoutTemplate, template.key);
+  };
+
+  const handleAddLibraryElement = async (template: BuilderTemplateLibraryItem) => {
+    const elementTemplate = instantiateTemplate(template.template);
+    await insertLibraryTemplateLayer(elementTemplate, template.key);
+  };
+
+  const handleDeleteLayout = async (layoutKey: string, e: React.MouseEvent, templateId?: string) => {
+    e.stopPropagation();
+
+    if (!templateId) {
+      alert('Seed/demo layouts are file-based and cannot be deleted from the DB library.');
+      return;
+    }
 
     if (!confirm(`Are you sure you want to delete the layout "${layoutKey}"?`)) {
       return;
     }
 
     try {
-      const response = await fetch(`/xxiv/api/layouts/${layoutKey}`, {
-        method: 'DELETE',
-      });
+      const response = await templateLibraryApi.delete(templateId);
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to delete layout');
+      if (response.error) {
+        throw new Error(response.error);
       }
 
-      // Refresh the page to reload layouts
-      window.location.reload();
+      await loadTemplateLibrary();
+      window.dispatchEvent(new CustomEvent('builderTemplateLibraryChanged'));
     } catch (error) {
       console.error('Failed to delete layout:', error);
       alert('Failed to delete layout. Check console for details.');
     }
   };
 
-  const handleEditLayout = async (layoutKey: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering the add layout action
+  const handleEditLayout = async (layoutKey: string, e: React.MouseEvent, template?: BuilderTemplateLibraryItem) => {
+    e.stopPropagation();
 
-    // Get current category
-    const category = getLayoutCategory(layoutKey) || 'Custom';
+    if (!template) {
+      alert('Seed/demo layouts remain file-based and are not editable from the DB library.');
+      return;
+    }
 
-    // Convert layout-key to Layout Name
-    const layoutName = layoutKey
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-
-    // Set state and open dialog
+    setEditingLayoutId(template.id);
     setEditingLayoutKey(layoutKey);
-    setEditingLayoutName(layoutName);
-    setEditingLayoutCategory(category);
+    setEditingLayoutName(template.name);
+    setEditingLayoutCategory(template.category || 'Custom');
     setIsEditLayoutDialogOpen(true);
   };
 
   const handleConfirmEditLayout = async (layoutName: string, category: string, imageFile: File | null, oldLayoutKey?: string) => {
-    if (!oldLayoutKey) return;
+    if (!oldLayoutKey || !editingLayoutId) return;
 
     try {
-      // Generate new layout key from name
       const newLayoutKey = layoutName.toLowerCase().replace(/\s+/g, '-');
-
-      // Call API to update layout
-      const response = await fetch(`/xxiv/api/layouts/${oldLayoutKey}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          newLayoutKey,
-          newLayoutName: layoutName,
-          category,
-        }),
+      const response = await templateLibraryApi.update(editingLayoutId, {
+        key: newLayoutKey,
+        name: layoutName,
+        category,
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to update layout');
+      if (response.error) {
+        throw new Error(response.error);
       }
 
-      // Refresh the page to reload layouts
-      window.location.reload();
+      await loadTemplateLibrary();
+      window.dispatchEvent(new CustomEvent('builderTemplateLibraryChanged'));
     } catch (error) {
       console.error('Failed to update layout:', error);
       throw error;
@@ -1528,20 +1827,40 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
                 </div>
               </div>
             ))}
+            {Object.entries(builderElementGroups).map(([categoryName, elements]) => (
+              <div key={`db-${categoryName}`} className="flex flex-col pb-5">
+                <header className="py-5">
+                  <Label>{categoryName}</Label>
+                </header>
+                <div className="grid grid-cols-2 gap-2">
+                  {elements.map((template) => (
+                    <ElementButton
+                      key={template.id}
+                      elementType={template.key}
+                      source="elements"
+                      name={template.name}
+                      icon="layout"
+                      onClick={() => handleAddLibraryElement(template)}
+                      onDragStart={() => {}}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
           </TabsContent>
 
           <TabsContent
             value="layouts" forceMount
             ref={(el) => { tabRefs.current.layouts = el; }} className="flex flex-col overflow-y-auto flex-1 px-4 pb-4 no-scrollbar"
           >
-            {getAllLayoutKeys().length === 0 ? (
+            {Object.keys(layoutLibraryItemsByCategory).length === 0 && !isLibraryLoading ? (
               <Empty>
                 <EmptyTitle>No layouts available</EmptyTitle>
                 <EmptyDescription>Pre-built page layouts will appear here</EmptyDescription>
               </Empty>
             ) : (
               <div className="flex flex-col divide-y pb-5">
-                {Object.entries(getLayoutsByCategory()).map(([category, layoutKeys]) => {
+                {Object.entries(layoutLibraryItemsByCategory).map(([category, layoutItems]) => {
                   const isCollapsed = collapsedCategories.has(category);
 
                   return (
@@ -1560,18 +1879,20 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
                         <Label className="cursor-pointer">{category}</Label>
                       </header>
                       <div className={cn('grid grid-cols-1 gap-1.5 pb-5', isCollapsed && 'hidden')}>
-                      {layoutKeys.map((layoutKey) => {
-                        const previewImage = getLayoutPreviewImage(layoutKey);
+                      {layoutItems.map((layoutItem) => {
+                        const previewImage = layoutItem.previewImage;
 
                         return (
-                          <ContextMenu key={layoutKey}>
+                          <ContextMenu key={layoutItem.id}>
                             <ContextMenuTrigger asChild>
                               <ElementButton
-                                elementType={layoutKey}
+                                elementType={layoutItem.key}
                                 source="layouts"
-                                name={layoutKey}
+                                name={layoutItem.name}
                                 icon="layout"
-                                onClick={() => handleAddLayout(layoutKey)}
+                                onClick={() => layoutItem.source === 'db' && layoutItem.template
+                                  ? handleAddDbLayout(layoutItem.template)
+                                  : handleAddLayout(layoutItem.key)}
                                 onDragStart={handleElementDragStart}
                                 variant="card"
                               >
@@ -1589,20 +1910,22 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
                             </ContextMenuTrigger>
 
                             <ContextMenuContent>
-                              <ContextMenuItem onClick={() => handleAddLayout(layoutKey)}>
+                              <ContextMenuItem onClick={() => layoutItem.source === 'db' && layoutItem.template
+                                ? handleAddDbLayout(layoutItem.template)
+                                : handleAddLayout(layoutItem.key)}>
                                 <Icon name="plus" className="size-3" />
                                 Add to Canvas
                               </ContextMenuItem>
 
-                              {process.env.NODE_ENV === 'development' && (
+                              {layoutItem.source === 'db' && layoutItem.template && (
                                 <>
                                   <ContextMenuSeparator />
-                                  <ContextMenuItem onClick={(e) => handleEditLayout(layoutKey, e)}>
+                                  <ContextMenuItem onClick={(e) => handleEditLayout(layoutItem.key, e, layoutItem.template)}>
                                     <Icon name="pencil" className="size-3" />
                                     Edit
                                   </ContextMenuItem>
                                   <ContextMenuItem
-                                    onClick={(e) => handleDeleteLayout(layoutKey, e)}
+                                    onClick={(e) => handleDeleteLayout(layoutItem.key, e, layoutItem.template?.id)}
                                     className="text-red-500 focus:text-red-500"
                                   >
                                     <Icon name="trash" className="size-3" />

@@ -140,7 +140,7 @@ export function getLayerFromTemplate(
 
   if (!block) return null;
 
-  const templateWithIds = instantiateTemplate(block.template);
+  const templateWithIds = instantiateTemplate(block.template as LayerTemplate);
 
   if (overrides && Object.keys(overrides).length > 0) {
     return { ...templateWithIds, ...overrides };
