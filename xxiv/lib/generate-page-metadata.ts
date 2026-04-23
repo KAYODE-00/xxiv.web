@@ -11,7 +11,7 @@ import type { Metadata } from 'next';
 import type { Page } from '@/types';
 import type { CollectionItemWithValues } from '@/types';
 import { resolveInlineVariables, resolveImageUrl } from '@/lib/resolve-cms-variables';
-import { getSettingsByKeys } from '@/lib/repositories/settingsRepository';
+import { getScopedSettingsByKeys } from '@/lib/repositories/settingsRepository';
 import { getAssetById } from '@/lib/repositories/assetRepository';
 import { getAssetProxyUrl } from '@/lib/asset-utils';
 import { generateColorVariablesCss } from '@/lib/repositories/colorVariableRepository';
@@ -64,7 +64,11 @@ export interface GenerateMetadataOptions {
  * Wrapped with React cache to deduplicate within the same request
  */
 export const fetchGlobalPageSettings = cache(async (): Promise<GlobalPageSettings> => {
-  const settings = await getSettingsByKeys([
+  return fetchGlobalPageSettingsForSite();
+});
+
+export const fetchGlobalPageSettingsForSite = cache(async (siteId?: string | null): Promise<GlobalPageSettings> => {
+  const settings = await getScopedSettingsByKeys([
     'google_site_verification',
     'global_canonical_url',
     'ga_measurement_id',
@@ -74,7 +78,7 @@ export const fetchGlobalPageSettings = cache(async (): Promise<GlobalPageSetting
     'xxiv_badge',
     'favicon_asset_id',
     'web_clip_asset_id',
-  ]);
+  ], siteId);
 
   // Fetch favicon and web clip asset URLs if IDs are set
   let faviconUrl: string | null = null;

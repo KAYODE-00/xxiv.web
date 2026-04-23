@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { setSettings } from '@/lib/repositories/settingsRepository';
+import { setScopedSettings } from '@/lib/repositories/settingsRepository';
 import { clearAllCache } from '@/lib/services/cacheService';
 
 import { getAuthUser } from '@/lib/xxiv/server-client';
+import { getXxivSiteIdFromRequest } from '@/lib/xxiv/site-settings';
 
 /**
  * PUT /xxiv/api/settings/batch
@@ -20,7 +21,8 @@ export async function PUT(request: NextRequest) {
     }
 
     body = await request.json();
-    const { siteId, settings } = body;
+    const { settings } = body;
+    const siteId = getXxivSiteIdFromRequest(request);
 
     if (!settings || typeof settings !== 'object') {
       return NextResponse.json(
@@ -29,7 +31,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const count = await setSettings(settings);
+    const count = await setScopedSettings(settings, siteId);
 
     try {
       await clearAllCache();

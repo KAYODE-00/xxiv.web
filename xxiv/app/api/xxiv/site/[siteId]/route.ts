@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { getScopedSettingByKey } from '@/lib/repositories/settingsRepository';
 import { getAllPages } from '@/lib/repositories/pageRepository';
 import { getAllPageFolders } from '@/lib/repositories/pageFolderRepository';
 import { fetchHomepage, renderPageLayersToHtml } from '@/lib/page-fetcher';
@@ -42,7 +42,7 @@ export async function GET(
     const [pages, folders, publishedCss] = await Promise.all([
       getAllPages({ is_published: true }, siteId),
       getAllPageFolders({ is_published: true }),
-      getSettingByKey('published_css'),
+      getScopedSettingByKey('published_css', siteId),
     ]);
 
     const html = await renderPageLayersToHtml({

@@ -1,8 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { getBuilderTemplateByKey, updateBuilderTemplate, softDeleteBuilderTemplate } from '@/lib/repositories/builderTemplateRepository';
+import { layoutTemplates } from '@/lib/templates/layouts';
 
-const LAYOUTS_FILE_PATH = path.join(process.cwd(), 'lib', 'templates', 'layouts.ts');
+async function buildUniqueLayoutKey(baseKey: string, currentId: string): Promise<string> {
+  const staticKeys = new Set(Object.keys(layoutTemplates));
+  let candidate = baseKey;
+  let counter = 2;
+
+  while (staticKeys.has(candidate)) {
+    candidate = `${baseKey}-${counter}`;
+    counter += 1;
+  }
+
+  while (true) {
+    const existing = await getBuilderTemplateByKey(candidate);
+    if (!existing || existing.id === currentId) {
+      return candidate;
+    }
+    candidate = `${baseKey}-${counter}`;
+    counter += 1;
+  }
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -19,105 +37,36 @@ export async function PATCH(
       );
     }
 
-    // Read the existing file
-    let fileContent = await fs.readFile(LAYOUTS_FILE_PATH, 'utf-8');
-
-    // Check if layout exists
-    if (!fileContent.includes(`'${layoutKey}':`)) {
+    const existingLayout = await getBuilderTemplateByKey(layoutKey);
+    if (!existingLayout || existingLayout.type !== 'layout') {
       return NextResponse.json(
-        { error: `Layout '${layoutKey}' not found` },
+        { error: `DB-backed layout '${layoutKey}' not found` },
         { status: 404 }
       );
     }
 
-    // If renaming, make the new key unique if it already exists (and it's not the same key)
-    let uniqueNewLayoutKey = newLayoutKey;
-    if (layoutKey !== newLayoutKey) {
-      let counter = 2;
-      while (fileContent.includes(`'${uniqueNewLayoutKey}':`) && uniqueNewLayoutKey !== layoutKey) {
-        uniqueNewLayoutKey = `${newLayoutKey}-${counter}`;
-        counter++;
-      }
-    }
-
-    // Find the layout entry using a simple approach
-    // Step 1: Find the layout start index using the original key
-    const layoutStartIndex = fileContent.indexOf(`'${layoutKey}': {`);
-    if (layoutStartIndex === -1) {
-      return NextResponse.json(
-        { error: 'Could not find layout entry' },
-        { status: 404 }
-      );
-    }
-
-    // Step 2: Replace the layout key if renaming
-    let searchKey = layoutKey; // Key to use for finding boundaries
-    if (layoutKey !== uniqueNewLayoutKey) {
-      const keyRegex = new RegExp(`'${layoutKey}':\\s*\\{`, 'g');
-      fileContent = fileContent.replace(keyRegex, `'${uniqueNewLayoutKey}': {`);
-      searchKey = uniqueNewLayoutKey;
-    }
-
-    // Find the updated layout position after potential key replacement
-    const updatedLayoutStartIndex = fileContent.indexOf(`'${searchKey}': {`);
-    if (updatedLayoutStartIndex === -1) {
-      return NextResponse.json(
-        { error: 'Could not find layout entry after key replacement' },
-        { status: 500 }
-      );
-    }
-
-    // Find the next layout entry or end of object to determine the boundary
-    const nextLayoutIndex = fileContent.indexOf('\n  \'', updatedLayoutStartIndex + 1);
-    const endOfObjectIndex = fileContent.indexOf('\n};', updatedLayoutStartIndex);
-    const layoutEndIndex = nextLayoutIndex !== -1 && nextLayoutIndex < endOfObjectIndex 
-      ? nextLayoutIndex 
-      : endOfObjectIndex;
-
-    if (layoutEndIndex === -1) {
-      return NextResponse.json(
-        { error: 'Could not determine layout boundaries' },
-        { status: 500 }
-      );
-    }
-
-    // Extract just this layout's section
-    const layoutSection = fileContent.substring(updatedLayoutStartIndex, layoutEndIndex);
-
-    // Update category in this section
-    const categoryRegex = /category:\s*'[^']*'/;
-    const updatedLayoutSection = layoutSection.replace(categoryRegex, `category: '${category}'`);
-
-    // Update preview image path in this section
-    const previewImageRegex = /previewImage:\s*'[^']*'/;
-    const updatedLayoutSectionWithImage = updatedLayoutSection.replace(
-      previewImageRegex, 
-      `previewImage: '/xxiv/layouts/previews/${uniqueNewLayoutKey}.webp'`
-    );
-
-    // Replace the section in the file
-    fileContent = fileContent.substring(0, updatedLayoutStartIndex) + 
-                  updatedLayoutSectionWithImage + 
-                  fileContent.substring(layoutEndIndex);
-
-    // Write back to file
-    await fs.writeFile(LAYOUTS_FILE_PATH, fileContent, 'utf-8');
+    const uniqueLayoutKey = await buildUniqueLayoutKey(newLayoutKey, existingLayout.id);
+    const updatedLayout = await updateBuilderTemplate(existingLayout.id, {
+      key: uniqueLayoutKey,
+      name: newLayoutName,
+      category,
+    });
 
     return NextResponse.json({
-      data: { layoutKey: uniqueNewLayoutKey, layoutName: newLayoutName, category },
+      data: updatedLayout,
       message: 'Layout updated successfully',
     });
   } catch (error) {
     console.error('Error updating layout:', error);
     return NextResponse.json(
-      { error: 'Failed to update layout' },
+      { error: error instanceof Error ? error.message : 'Failed to update layout' },
       { status: 500 }
     );
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ layoutKey: string }> }
 ) {
   try {
@@ -130,70 +79,15 @@ export async function DELETE(
       );
     }
 
-    // Read the existing file
-    let fileContent = await fs.readFile(LAYOUTS_FILE_PATH, 'utf-8');
-
-    // Check if layout exists
-    const layoutStartIndex = fileContent.indexOf(`'${layoutKey}': {`);
-    if (layoutStartIndex === -1) {
+    const existingLayout = await getBuilderTemplateByKey(layoutKey);
+    if (!existingLayout || existingLayout.type !== 'layout') {
       return NextResponse.json(
-        { error: `Layout '${layoutKey}' not found` },
+        { error: `DB-backed layout '${layoutKey}' not found` },
         { status: 404 }
       );
     }
 
-    // Find the layout boundaries
-    const nextLayoutIndex = fileContent.indexOf('\n  \'', layoutStartIndex + 1);
-    const endOfObjectIndex = fileContent.indexOf('\n};', layoutStartIndex);
-    const layoutEndIndex = nextLayoutIndex !== -1 && nextLayoutIndex < endOfObjectIndex 
-      ? nextLayoutIndex 
-      : endOfObjectIndex;
-
-    if (layoutEndIndex === -1) {
-      return NextResponse.json(
-        { error: 'Could not determine layout boundaries' },
-        { status: 500 }
-      );
-    }
-
-    // Check if we need to include the comma from the previous entry
-    // Look backwards to find if there's a comma before this entry
-    let deleteStartIndex = layoutStartIndex;
-    
-    // Find the start of the line (including leading whitespace and newline)
-    while (deleteStartIndex > 0 && fileContent[deleteStartIndex - 1] !== '\n') {
-      deleteStartIndex--;
-    }
-
-    // Remove the layout entry
-    fileContent = fileContent.substring(0, deleteStartIndex) + fileContent.substring(layoutEndIndex);
-
-    // Clean up any double commas or trailing commas before closing brace
-    fileContent = fileContent.replace(/,(\s*),/g, ',');
-    fileContent = fileContent.replace(/,(\s*)\n\s*\}/g, '\n}');
-
-    // Write back to file
-    await fs.writeFile(LAYOUTS_FILE_PATH, fileContent, 'utf-8');
-
-    // Try to delete the associated image file
-    try {
-      const layoutsDir = path.join(process.cwd(), 'public', 'xxiv', 'layouts', 'previews');
-      
-      // Try common image extensions
-      const extensions = ['.webp', '.png', '.jpg', '.jpeg', '.gif'];
-      for (const ext of extensions) {
-        const imagePath = path.join(layoutsDir, `${layoutKey}${ext}`);
-        try {
-          await fs.unlink(imagePath);
-          break; // Stop after successfully deleting one
-        } catch {
-          // File doesn't exist with this extension, try next
-        }
-      }
-    } catch (error) {
-      console.error('Failed to delete image file:', error);
-      // Don't fail the request if image deletion fails
-    }
+    await softDeleteBuilderTemplate(existingLayout.id);
 
     return NextResponse.json({
       data: { layoutKey },
@@ -202,7 +96,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting layout:', error);
     return NextResponse.json(
-      { error: 'Failed to delete layout' },
+      { error: error instanceof Error ? error.message : 'Failed to delete layout' },
       { status: 500 }
     );
   }

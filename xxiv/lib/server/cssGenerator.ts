@@ -14,7 +14,7 @@ import type { Layer, Component } from '@/types';
 import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 import { getAllDraftLayers } from '@/lib/repositories/pageLayersRepository';
 import { getAllComponents } from '@/lib/repositories/componentRepository';
-import { setSetting } from '@/lib/repositories/settingsRepository';
+import { setScopedSetting } from '@/lib/repositories/settingsRepository';
 
 /**
  * Extract all Tailwind classes from a layer tree.
@@ -125,7 +125,7 @@ export async function generateCssFromLayers(
  *
  * This is the server-side equivalent of the client's generateAndSaveCSS.
  */
-export async function generateAndSaveDraftCSS(): Promise<string> {
+export async function generateAndSaveDraftCSS(siteId?: string | null): Promise<string> {
   const allLayers: Layer[] = [];
 
   const draftPageLayers = await getAllDraftLayers();
@@ -146,7 +146,7 @@ export async function generateAndSaveDraftCSS(): Promise<string> {
   const classNames = Array.from(classes);
   const css = await compileCss(classNames);
 
-  await setSetting('draft_css', css);
+  await setScopedSetting('draft_css', css, siteId);
 
   return css;
 }

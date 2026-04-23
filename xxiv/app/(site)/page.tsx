@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { fetchHomepage, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
-import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
+import { generatePageMetadata, fetchGlobalPageSettingsForSite } from '@/lib/generate-page-metadata';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
 import { getSiteBaseUrl } from '@/lib/url-utils';
 import type { Metadata } from 'next';
@@ -50,12 +50,12 @@ async function resolveXxivSiteId(searchParams?: Promise<Record<string, string | 
   return cookieStore.get('xxiv_site_id')?.value;
 }
 
-async function fetchCachedGlobalSettings() {
+async function fetchCachedGlobalSettings(xxivSiteId?: string) {
   try {
     return await unstable_cache(
-      async () => fetchGlobalPageSettings(),
-      ['data-for-global-settings'],
-      { tags: ['all-pages'], revalidate: false }
+      async () => fetchGlobalPageSettingsForSite(xxivSiteId),
+      [`data-for-global-settings-${xxivSiteId ?? 'default'}`],
+      { tags: ['all-pages', `site-settings-${xxivSiteId ?? 'default'}`], revalidate: false }
     )();
   } catch {
     return {
@@ -113,7 +113,7 @@ export default async function Home({
   }
 
   // Load all global settings early so error pages also get global custom code
-  const globalSettings = await fetchCachedGlobalSettings();
+  const globalSettings = await fetchCachedGlobalSettings(xxivSiteId);
 
   // Check password protection for homepage.
   // First evaluate without cookies() so non-protected pages can stay cacheable.

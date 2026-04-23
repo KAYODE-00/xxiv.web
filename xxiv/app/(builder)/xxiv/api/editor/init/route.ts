@@ -13,6 +13,7 @@ import { getAllFonts } from '@/lib/repositories/fontRepository';
 import { getMapboxAccessToken, getGoogleMapsEmbedApiKey } from '@/lib/map-server';
 import { createServerClient } from '@supabase/ssr';
 import { stripXxivIndexSlug } from '@/lib/xxiv/index-slug';
+import { isSiteScopedSettingKey, parseSiteScopedSettingKey } from '@/lib/xxiv/site-settings';
 
 function getSupabaseEnvConfig(): { url: string; anonKey: string } | null {
   const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
@@ -129,7 +130,33 @@ export async function GET(request: NextRequest) {
       const scopedDrafts = (drafts || []).filter((d) => allowedPageIds.has(d.page_id));
 
       // Reuse token-injection logic for scoped responses too.
-      const enrichedSettings = [...settings];
+      const scopedSettingsMap = new Map<string, any>();
+      const globalSettings: any[] = [];
+
+      for (const setting of settings || []) {
+        const parsed = parseSiteScopedSettingKey(setting.key);
+
+        if (parsed) {
+          if (parsed.siteId === xxivSiteId) {
+            scopedSettingsMap.set(parsed.key, {
+              ...setting,
+              key: parsed.key,
+            });
+          }
+          continue;
+        }
+
+        if (isSiteScopedSettingKey(setting.key)) {
+          continue;
+        }
+
+        globalSettings.push(setting);
+      }
+
+      const enrichedSettings = [
+        ...globalSettings,
+        ...Array.from(scopedSettingsMap.values()),
+      ];
       const injectedTokens: [string, string, string | null][] = [
         ['app:mapbox:access_token', 'mapbox_access_token', resolvedMapboxToken],
         ['app:google-maps-embed:api_key', 'google_maps_embed_api_key', resolvedGoogleMapsEmbedKey],

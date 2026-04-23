@@ -6,6 +6,7 @@
 
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { Setting } from '@/types';
+import { resolveSiteScopedStorageKey } from '@/lib/xxiv/site-settings';
 
 async function writeSettingWithoutConflict(
   key: string,
@@ -153,6 +154,35 @@ export async function getSettingsByKeys(keys: string[]): Promise<Record<string, 
   return result;
 }
 
+export async function getScopedSettingByKey(
+  key: string,
+  siteId?: string | null,
+): Promise<any | null> {
+  return getSettingByKey(resolveSiteScopedStorageKey(key, siteId));
+}
+
+export async function getScopedSettingsByKeys(
+  keys: string[],
+  siteId?: string | null,
+): Promise<Record<string, any>> {
+  if (keys.length === 0) {
+    return {};
+  }
+
+  const storageKeys = keys.map((key) => resolveSiteScopedStorageKey(key, siteId));
+  const rawValues = await getSettingsByKeys(storageKeys);
+  const result: Record<string, any> = {};
+
+  keys.forEach((key, index) => {
+    const storageKey = storageKeys[index];
+    if (Object.prototype.hasOwnProperty.call(rawValues, storageKey)) {
+      result[key] = rawValues[storageKey];
+    }
+  });
+
+  return result;
+}
+
 /**
  * Set a setting value (insert or update)
  *
@@ -162,6 +192,14 @@ export async function getSettingsByKeys(keys: string[]): Promise<Record<string, 
  */
 export async function setSetting(key: string, value: any): Promise<Setting> {
   return writeSettingWithoutConflict(key, value);
+}
+
+export async function setScopedSetting(
+  key: string,
+  value: any,
+  siteId?: string | null,
+): Promise<Setting> {
+  return setSetting(resolveSiteScopedStorageKey(key, siteId), value);
 }
 
 /**
@@ -204,4 +242,18 @@ export async function setSettings(settings: Record<string, any>): Promise<number
   }
 
   return entries.length;
+}
+
+export async function setScopedSettings(
+  settings: Record<string, any>,
+  siteId?: string | null,
+): Promise<number> {
+  const scopedEntries = Object.fromEntries(
+    Object.entries(settings).map(([key, value]) => [
+      resolveSiteScopedStorageKey(key, siteId),
+      value,
+    ]),
+  );
+
+  return setSettings(scopedEntries);
 }

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { fetchHomepage, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
-import { getSettingsByKeys } from '@/lib/repositories/settingsRepository';
+import { getScopedSettingsByKeys } from '@/lib/repositories/settingsRepository';
 import { generateColorVariablesCss } from '@/lib/repositories/colorVariableRepository';
 import { generatePageMetadata } from '@/lib/generate-page-metadata';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
@@ -10,7 +10,9 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 
 async function fetchPreviewDraftCss() {
-  const settings = await getSettingsByKeys(['draft_css']);
+  const cookieStore = await cookies();
+  const xxivSiteId = cookieStore.get('xxiv_site_id')?.value || null;
+  const settings = await getScopedSettingsByKeys(['draft_css'], xxivSiteId);
   return (settings.draft_css as string) || undefined;
 }
 

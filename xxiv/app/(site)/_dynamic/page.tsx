@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { fetchHomepage, fetchErrorPage, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
-import { fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
+import { fetchGlobalPageSettingsForSite } from '@/lib/generate-page-metadata';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
-import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { getScopedSettingByKey } from '@/lib/repositories/settingsRepository';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 // Internal pagination path: always dynamic/no-store.
@@ -33,12 +34,17 @@ export default async function DynamicHome({ searchParams }: DynamicHomeProps) {
 
   unstable_noStore();
 
+  const cookieStore = await cookies();
+  const xxivSiteId = typeof resolvedSearchParams.xxiv_site_id === 'string'
+    ? resolvedSearchParams.xxiv_site_id
+    : cookieStore.get('xxiv_site_id')?.value;
+
   const paginationContext: PaginationContext = {
     pageNumbers,
     defaultPage: 1,
   };
 
-  const data = await fetchHomepage(true, paginationContext);
+  const data = await fetchHomepage(true, paginationContext, undefined, undefined, xxivSiteId);
 
   if (!data || !data.pageLayers) {
     return  redirect('/dashboard');
@@ -53,7 +59,7 @@ export default async function DynamicHome({ searchParams }: DynamicHomeProps) {
 
     if (!protection.isUnlocked) {
       const errorPageData = await fetchErrorPage(401, true);
-      const publishedCSS = await getSettingByKey('published_css');
+      const publishedCSS = await getScopedSettingByKey('published_css', xxivSiteId);
 
       if (errorPageData) {
         const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
@@ -92,7 +98,7 @@ export default async function DynamicHome({ searchParams }: DynamicHomeProps) {
     }
   }
 
-  const globalSettings = await fetchGlobalPageSettings();
+  const globalSettings = await fetchGlobalPageSettingsForSite(xxivSiteId);
 
   return (
     <PageRenderer

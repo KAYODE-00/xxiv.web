@@ -3,11 +3,11 @@ import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
-import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
+import { generatePageMetadata, fetchGlobalPageSettingsForSite } from '@/lib/generate-page-metadata';
 import { fetchHomepage, fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
-import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { getScopedSettingByKey } from '@/lib/repositories/settingsRepository';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
 import { getSiteBaseUrl } from '@/lib/url-utils';
 import type { Page, PageFolder, Translation, Redirect as RedirectType } from '@/types';
@@ -260,24 +260,24 @@ async function resolveXxivSiteFromSlugPath(slug: string | string[]): Promise<Xxi
   };
 }
 
-async function fetchCachedRedirects(): Promise<RedirectType[] | null> {
+async function fetchCachedRedirects(xxivSiteId?: string): Promise<RedirectType[] | null> {
   try {
     return await unstable_cache(
-      async () => getSettingByKey('redirects') as Promise<RedirectType[] | null>,
-      ['data-for-redirects'],
-      { tags: ['all-pages'], revalidate: false }
+      async () => getScopedSettingByKey('redirects', xxivSiteId) as Promise<RedirectType[] | null>,
+      [`data-for-redirects-${xxivSiteId ?? 'default'}`],
+      { tags: ['all-pages', `site-settings-${xxivSiteId ?? 'default'}`], revalidate: false }
     )();
   } catch {
     return null;
   }
 }
 
-async function fetchCachedGlobalSettings() {
+async function fetchCachedGlobalSettings(xxivSiteId?: string) {
   try {
     return await unstable_cache(
-      async () => fetchGlobalPageSettings(),
-      ['data-for-global-settings'],
-      { tags: ['all-pages'], revalidate: false }
+      async () => fetchGlobalPageSettingsForSite(xxivSiteId),
+      [`data-for-global-settings-${xxivSiteId ?? 'default'}`],
+      { tags: ['all-pages', `site-settings-${xxivSiteId ?? 'default'}`], revalidate: false }
     )();
   } catch {
     return {
@@ -352,7 +352,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   // Check for redirects before processing the page
   const currentPath = xxivSiteRoute.pagePathname;
-  const redirects = await fetchCachedRedirects();
+  const redirects = await fetchCachedRedirects(xxivSiteId);
   if (redirects && Array.isArray(redirects)) {
     const matchedRedirect = redirects.find((r) => r.oldUrl === currentPath);
     if (matchedRedirect) {
@@ -368,7 +368,7 @@ export default async function Page({ params, searchParams }: PageProps) {
   const data = await fetchPublishedRouteData(targetSlugPath, xxivSiteId);
 
   // Load all global settings early so error pages also get global custom code
-  const globalSettings = await fetchCachedGlobalSettings();
+  const globalSettings = await fetchCachedGlobalSettings(xxivSiteId);
 
   // If page not found, try to show custom 404 error page
   if (!data) {

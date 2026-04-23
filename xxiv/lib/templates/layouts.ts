@@ -13,7 +13,6 @@ interface LayoutTemplate {
 }
 
 export const layoutTemplates: Record<string, LayoutTemplate> = {
-
   'hero-001': {
     category: 'Hero',
     previewImage: '/xxiv/layouts/previews/hero-001.webp',

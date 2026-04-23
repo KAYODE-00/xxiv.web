@@ -27,7 +27,7 @@ import { resolveInlineVariables, resolveInlineVariablesFromData } from '@/lib/in
 import { formatFieldValue } from '@/lib/cms-variables-utils';
 import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue, getTranslationValue } from '@/lib/localisation-utils';
 import { formatDateFieldsInItemValues } from '@/lib/date-format-utils';
-import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { getScopedSettingByKey } from '@/lib/repositories/settingsRepository';
 import { parseMultiAssetFieldValue, buildAssetVirtualValues } from '@/lib/multi-asset-utils';
 import { parseMultiReferenceValue } from '@/lib/collection-utils';
 import { combineBgValues, mergeStaticBgVars } from '@/lib/tailwind-class-mapper';
@@ -474,7 +474,7 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
             enhancedItemValues = applyCmsTranslations(collectionItem.id, enhancedItemValues, collectionFields, translations);
 
             // Format date fields in user's timezone
-            const timezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
+            const timezone = (await getScopedSettingByKey('timezone', xxivSiteId) as string | null) || 'UTC';
             const rawItemValues = { ...enhancedItemValues };
             enhancedItemValues = formatDateFieldsInItemValues(enhancedItemValues, collectionFields, timezone);
 
@@ -500,7 +500,7 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
             // Pass enhanced values so nested collections can filter based on dynamic page data
             // Pass collectionItem.id so inverse reference layers can query by parent item
             let resolvedLayers = layersWithInjectedData.length > 0
-              ? await resolveCollectionLayers(layersWithInjectedData, isPublished, enhancedItemValues, paginationContext, translations, collectionItem.id)
+              ? await resolveCollectionLayers(layersWithInjectedData, isPublished, enhancedItemValues, paginationContext, translations, collectionItem.id, xxivSiteId)
               : [];
 
             // Resolve collections inside rich text embedded components
@@ -559,7 +559,7 @@ export const fetchPageByPath = cache(async function fetchPageByPath(
     // Resolve collection layers server-side (for both draft and published)
     // The isPublished parameter controls which collection items to fetch
     let resolvedLayers = layersWithComponents.length > 0
-      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, paginationContext, translations)
+      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, paginationContext, translations, undefined, xxivSiteId)
       : [];
 
     // Resolve collections inside rich text embedded components
@@ -652,7 +652,7 @@ export async function fetchErrorPage(
     // Resolve collection layers server-side (for both draft and published)
     // The isPublished parameter controls which collection items to fetch
     let resolvedLayers = layersWithComponents.length > 0
-      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, undefined, undefined)
+      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, undefined, undefined, undefined, undefined)
       : [];
 
     // Resolve collections inside rich text embedded components
@@ -794,7 +794,7 @@ export const fetchHomepage = cache(async function fetchHomepage(
 
     // Resolve collection layers server-side (for both draft and published)
     let resolvedLayers = layersWithComponents.length > 0
-      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, paginationContext, undefined)
+      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, paginationContext, undefined, undefined, xxivSiteId)
       : [];
 
     // Resolve collections inside rich text embedded components
@@ -1669,10 +1669,11 @@ export async function resolveCollectionLayers(
   parentItemValues?: Record<string, string>,
   paginationContext?: PaginationContext,
   translations?: Record<string, Translation>,
-  parentCollectionItemId?: string
+  parentCollectionItemId?: string,
+  xxivSiteId?: string,
 ): Promise<Layer[]> {
   // Fetch timezone setting for date formatting
-  const timezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
+  const timezone = (await getScopedSettingByKey('timezone', xxivSiteId) as string | null) || 'UTC';
 
   const resolveLayer = async (
     layer: Layer,
@@ -2666,12 +2667,13 @@ export async function renderCollectionItemsToHtml(
   tenantId?: string,
   collectionLayerClasses?: string[],
   collectionLayerTag?: string,
+  xxivSiteId?: string,
 ): Promise<string> {
   // Fetch collection fields for field resolution
   const collectionFields = await getFieldsByCollectionId(collectionId, isPublished, { excludeComputed: true });
 
   // Get timezone setting for date formatting
-  const htmlTimezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
+  const htmlTimezone = (await getScopedSettingByKey('timezone', xxivSiteId) as string | null) || 'UTC';
 
   // Pre-fetch map provider tokens for map layers in HTML export
   await ensureMapTokens();
@@ -2701,7 +2703,8 @@ export async function renderCollectionItemsToHtml(
         item.values, // Parent item values for multi-reference filtering
         undefined, // No pagination context for Load More rendering
         undefined, // TODO: Add translation support for Load More pagination
-        item.id // Parent item ID for inverse reference resolution
+        item.id, // Parent item ID for inverse reference resolution
+        xxivSiteId,
       );
 
       // Resolve all AssetVariables to URLs server-side

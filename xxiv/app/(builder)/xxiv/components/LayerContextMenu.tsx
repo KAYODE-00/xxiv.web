@@ -561,6 +561,8 @@ export default function LayerContextMenu({
       if (!response.ok) {
         throw new Error(result.error || 'Failed to save layout');
       }
+
+      window.dispatchEvent(new CustomEvent('builderTemplateLibraryChanged'));
     } catch (error) {
       console.error('Failed to save layout:', error);
       throw error;

@@ -4,7 +4,7 @@
  * Business logic for managing application settings
  */
 
-import { getSettingsByKeys, setSetting } from '@/lib/repositories/settingsRepository';
+import { getScopedSettingsByKeys, setScopedSetting } from '@/lib/repositories/settingsRepository';
 import type { Setting } from '@/types';
 
 /**
@@ -14,9 +14,12 @@ import type { Setting } from '@/types';
  *
  * @returns True if CSS was updated, false if unchanged or missing
  */
-export async function syncCSS(direction: 'publish' | 'revert' = 'publish'): Promise<boolean> {
+export async function syncCSS(
+  direction: 'publish' | 'revert' = 'publish',
+  siteId?: string | null,
+): Promise<boolean> {
   const { draft_css: draftCSS, published_css: publishedCSS } =
-    await getSettingsByKeys(['draft_css', 'published_css']);
+    await getScopedSettingsByKeys(['draft_css', 'published_css'], siteId);
 
   const sourceCSS = direction === 'publish' ? draftCSS : publishedCSS;
   const targetCSS = direction === 'publish' ? publishedCSS : draftCSS;
@@ -33,18 +36,21 @@ export async function syncCSS(direction: 'publish' | 'revert' = 'publish'): Prom
     return false;
   }
 
-  await setSetting(targetKey, sourceCSS);
+  await setScopedSetting(targetKey, sourceCSS, siteId);
   return true;
 }
 
 /** @deprecated Use syncCSS('publish') instead */
-export const publishCSS = () => syncCSS('publish');
+export const publishCSS = (siteId?: string | null) => syncCSS('publish', siteId);
 
 /**
  * Save the published timestamp
  * @param timestamp - ISO timestamp string
  * @returns The created/updated setting
  */
-export async function savePublishedAt(timestamp: string): Promise<Setting> {
-  return await setSetting('published_at', timestamp);
+export async function savePublishedAt(
+  timestamp: string,
+  siteId?: string | null,
+): Promise<Setting> {
+  return await setScopedSetting('published_at', timestamp, siteId);
 }

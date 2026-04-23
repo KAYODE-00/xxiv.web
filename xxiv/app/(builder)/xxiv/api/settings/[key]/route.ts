@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSettingByKey, setSetting } from '@/lib/repositories/settingsRepository';
+import { getScopedSettingByKey, setScopedSetting } from '@/lib/repositories/settingsRepository';
 import { clearAllCache } from '@/lib/services/cacheService';
 import { getAuthUser } from '@/lib/xxiv/server-client';
+import { getXxivSiteIdFromRequest } from '@/lib/xxiv/site-settings';
 
 /**
  * GET /xxiv/api/settings/[key]
@@ -14,7 +15,8 @@ export async function GET(
 ) {
   try {
     const { key } = await params;
-    const value = await getSettingByKey(key);
+    const siteId = getXxivSiteIdFromRequest(request);
+    const value = await getScopedSettingByKey(key, siteId);
 
     if (value === null) {
       return NextResponse.json(
@@ -52,6 +54,7 @@ export async function PUT(
 
     const { key } = await params;
     settingKey = key;
+    const siteId = getXxivSiteIdFromRequest(request);
     body = await request.json();
     const { value } = body;
 
@@ -62,7 +65,7 @@ export async function PUT(
       );
     }
 
-    await setSetting(key, value);
+    await setScopedSetting(key, value, siteId);
 
     try {
       await clearAllCache();

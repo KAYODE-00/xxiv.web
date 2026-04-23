@@ -25,6 +25,110 @@ const blocks = {
   ...utilityTemplates,
 };
 
+export function instantiateTemplate(template: LayerTemplate): Layer {
+  const resolvedTemplate = resolveTemplateRefs(cloneDeep(template));
+
+  const processSubtree = (layer: LayerTemplate): Layer => {
+    const idMap = new Map<string, string>();
+
+    const assignIds = (currentLayer: LayerTemplate): Layer => {
+      const oldId = (currentLayer as any).id as string | undefined;
+      const newId = generateId('lyr');
+
+      if (oldId) {
+        idMap.set(oldId, newId);
+      }
+
+      const layerWithId = { ...currentLayer, id: newId } as Layer;
+
+      if (layerWithId.children && Array.isArray(layerWithId.children)) {
+        layerWithId.children = layerWithId.children.map((child) =>
+          assignIds(child as LayerTemplate)
+        ) as Layer[];
+      }
+
+      return layerWithId;
+    };
+
+    const layerWithNewIds = assignIds(layer);
+
+    const remapInteractions = (currentLayer: Layer): Layer => {
+      let updatedLayer = currentLayer;
+
+      if (currentLayer.interactions && currentLayer.interactions.length > 0) {
+        updatedLayer = {
+          ...updatedLayer,
+          interactions: currentLayer.interactions.map(interaction => ({
+            ...interaction,
+            id: generateId('int'),
+            tweens: interaction.tweens.map(tween => ({
+              ...tween,
+              id: generateId('twn'),
+              layer_id: idMap.has(tween.layer_id)
+                ? idMap.get(tween.layer_id)!
+                : tween.layer_id,
+            })),
+          })),
+        };
+      }
+
+      if (updatedLayer.children) {
+        updatedLayer = {
+          ...updatedLayer,
+          children: updatedLayer.children.map(remapInteractions),
+        };
+      }
+
+      return updatedLayer;
+    };
+
+    return remapInteractions(layerWithNewIds);
+  };
+
+  const processTemplate = (layer: LayerTemplate): Layer => {
+    const isInlinedComponent = (layer as any)._inlinedComponentName;
+
+    if (isInlinedComponent) {
+      return processSubtree(layer);
+    }
+
+    const oldId = (layer as any).id as string | undefined;
+    const newId = generateId('lyr');
+
+    let processedLayer = { ...layer, id: newId } as Layer;
+
+    if (processedLayer.children && Array.isArray(processedLayer.children)) {
+      processedLayer.children = processedLayer.children.map((child) =>
+        processTemplate(child as LayerTemplate)
+      ) as Layer[];
+    }
+
+    if (processedLayer.interactions && processedLayer.interactions.length > 0) {
+      const localIdMap = new Map<string, string>();
+      if (oldId) localIdMap.set(oldId, newId);
+
+      processedLayer = {
+        ...processedLayer,
+        interactions: processedLayer.interactions.map(interaction => ({
+          ...interaction,
+          id: generateId('int'),
+          tweens: interaction.tweens.map(tween => ({
+            ...tween,
+            id: generateId('twn'),
+            layer_id: localIdMap.has(tween.layer_id)
+              ? localIdMap.get(tween.layer_id)!
+              : tween.layer_id,
+          })),
+        })),
+      };
+    }
+
+    return processedLayer;
+  };
+
+  return processTemplate(resolvedTemplate as LayerTemplate);
+}
+
 /**
  * Get a layer (with IDs) from a template
  */
@@ -36,23 +140,7 @@ export function getLayerFromTemplate(
 
   if (!block) return null;
 
-  const template = cloneDeep(block.template);
-
-  // Resolve any template references first
-  const resolvedTemplate = resolveTemplateRefs(template);
-
-  // Recursively assign IDs to all nested children
-  const assignIds = (layer: Omit<Layer, 'id'>): Layer => {
-    const layerWithId = { ...layer, id: generateId('lyr') } as Layer;
-
-    if (layerWithId.children && Array.isArray(layerWithId.children)) {
-      layerWithId.children = layerWithId.children.map((child) => assignIds(child as Omit<Layer, 'id'>)) as Layer[];
-    }
-
-    return layerWithId;
-  };
-
-  const templateWithIds = assignIds(resolvedTemplate as Omit<Layer, 'id'>);
+  const templateWithIds = instantiateTemplate(block.template);
 
   if (overrides && Object.keys(overrides).length > 0) {
     return { ...templateWithIds, ...overrides };
@@ -179,139 +267,7 @@ export function getAllBlockTypes(): string[] {
 export function getLayoutTemplate(key: string): Layer | null {
   const layout = layoutTemplates[key as keyof typeof layoutTemplates];
   if (!layout) return null;
-
-  const template = cloneDeep(layout.template);
-
-  // Resolve any template references first
-  const resolvedTemplate = resolveTemplateRefs(template);
-
-  /**
-   * Process a subtree completely: assign new IDs and remap interactions
-   * using a local idMap that's isolated to this subtree
-   */
-  const processSubtree = (layer: LayerTemplate): Layer => {
-    const idMap = new Map<string, string>();
-    
-    // First pass: assign new IDs to all layers in this subtree
-    const assignIds = (l: LayerTemplate): Layer => {
-      const oldId = (l as any).id as string | undefined;
-      const newId = generateId('lyr');
-
-      if (oldId) {
-        idMap.set(oldId, newId);
-      }
-
-      const layerWithId = { ...l, id: newId } as Layer;
-
-      if (layerWithId.children && Array.isArray(layerWithId.children)) {
-        layerWithId.children = layerWithId.children.map((child) => 
-          assignIds(child as LayerTemplate)
-        ) as Layer[];
-      }
-
-      return layerWithId;
-    };
-
-    const layerWithNewIds = assignIds(layer);
-
-    // Second pass: remap interaction layer_id references
-    const remapInteractions = (l: Layer): Layer => {
-      let updatedLayer = l;
-
-      if (l.interactions && l.interactions.length > 0) {
-        updatedLayer = {
-          ...updatedLayer,
-          interactions: l.interactions.map(interaction => ({
-            ...interaction,
-            id: generateId('int'),
-            tweens: interaction.tweens.map(tween => ({
-              ...tween,
-              id: generateId('twn'),
-              layer_id: idMap.has(tween.layer_id)
-                ? idMap.get(tween.layer_id)!
-                : tween.layer_id,
-            })),
-          })),
-        };
-      }
-
-      if (updatedLayer.children) {
-        updatedLayer = {
-          ...updatedLayer,
-          children: updatedLayer.children.map(remapInteractions),
-        };
-      }
-
-      return updatedLayer;
-    };
-
-    return remapInteractions(layerWithNewIds);
-  };
-
-  /**
-   * Process the template, treating _inlinedComponentName subtrees as isolated units
-   * to prevent ID collisions between multiple instances of the same component
-   */
-  const processTemplate = (layer: LayerTemplate): Layer => {
-    const isInlinedComponent = (layer as any)._inlinedComponentName;
-    
-    if (isInlinedComponent) {
-      // This is an inlined component - process its entire subtree with isolated idMap
-      // First process this layer and its children as a unit
-      const processed = processSubtree(layer);
-      return processed;
-    }
-
-    // For regular layers, assign a new ID
-    const oldId = (layer as any).id as string | undefined;
-    const newId = generateId('lyr');
-    
-    let processedLayer = { ...layer, id: newId } as Layer;
-
-    // Process children - each child may be an inlined component or regular layer
-    if (processedLayer.children && Array.isArray(processedLayer.children)) {
-      processedLayer.children = processedLayer.children.map((child) => 
-        processTemplate(child as LayerTemplate)
-      ) as Layer[];
-    }
-
-    // For regular layers with interactions, we need to handle them
-    // Build a local idMap from this layer's subtree for interaction remapping
-    if (processedLayer.interactions && processedLayer.interactions.length > 0) {
-      // Collect all layer IDs in the current subtree (excluding already-processed inlined components)
-      const collectIds = (l: Layer, map: Map<string, string>) => {
-        if (oldId && l.id === newId) {
-          map.set(oldId, newId);
-        }
-        // Don't recurse into inlined components - they have their own ID namespace
-        if (!(l as any)._inlinedComponentName && l.children) {
-          l.children.forEach(child => collectIds(child, map));
-        }
-      };
-      
-      const localIdMap = new Map<string, string>();
-      if (oldId) localIdMap.set(oldId, newId);
-      
-      processedLayer = {
-        ...processedLayer,
-        interactions: processedLayer.interactions.map(interaction => ({
-          ...interaction,
-          id: generateId('int'),
-          tweens: interaction.tweens.map(tween => ({
-            ...tween,
-            id: generateId('twn'),
-            layer_id: localIdMap.has(tween.layer_id)
-              ? localIdMap.get(tween.layer_id)!
-              : tween.layer_id,
-          })),
-        })),
-      };
-    }
-
-    return processedLayer;
-  };
-
-  return processTemplate(resolvedTemplate as LayerTemplate);
+  return instantiateTemplate(layout.template);
 }
 
 /**

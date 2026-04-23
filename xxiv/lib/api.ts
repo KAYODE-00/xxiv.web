@@ -4,7 +4,7 @@
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale, Translation, CreateLocaleData, UpdateLocaleData, CreateTranslationData, UpdateTranslationData, AssetFolder, Font } from '../types';
+import type { Page, PageLayers, Layer, LayerTemplate, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale, Translation, CreateLocaleData, UpdateLocaleData, CreateTranslationData, UpdateTranslationData, AssetFolder, Font } from '../types';
 import type { StatusAction } from '@/lib/collection-field-utils';
 import type { CollectionUsageResult, CollectionFieldUsageResult } from '@/lib/collection-usage-utils';
 
@@ -726,6 +726,67 @@ export const componentsApi = {
     }
 
     return response.json();
+  },
+};
+
+export interface BuilderTemplateLibraryItem {
+  id: string;
+  key: string;
+  name: string;
+  type: 'layout' | 'element';
+  category: string;
+  preview_image_url: string | null;
+  source: string;
+  tags: string[];
+  template: LayerTemplate;
+  is_system: boolean;
+  is_published: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export const templateLibraryApi = {
+  async list(type?: 'layout' | 'element'): Promise<ApiResponse<BuilderTemplateLibraryItem[]>> {
+    const query = type ? `?type=${type}` : '';
+    return apiRequest<BuilderTemplateLibraryItem[]>(`/xxiv/api/template-library${query}`);
+  },
+
+  async getById(id: string): Promise<ApiResponse<BuilderTemplateLibraryItem>> {
+    return apiRequest<BuilderTemplateLibraryItem>(`/xxiv/api/template-library/${id}`);
+  },
+
+  async create(data: {
+    key: string;
+    name: string;
+    type: 'layout' | 'element';
+    category: string;
+    preview_image_url?: string | null;
+    source?: string;
+    tags?: string[];
+    template: LayerTemplate;
+    is_system?: boolean;
+    is_published?: boolean;
+    sort_order?: number;
+  }): Promise<ApiResponse<BuilderTemplateLibraryItem>> {
+    return apiRequest<BuilderTemplateLibraryItem>('/xxiv/api/template-library', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async update(id: string, data: Partial<BuilderTemplateLibraryItem>): Promise<ApiResponse<BuilderTemplateLibraryItem>> {
+    return apiRequest<BuilderTemplateLibraryItem>(`/xxiv/api/template-library/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async delete(id: string): Promise<ApiResponse<{ id: string }>> {
+    return apiRequest<{ id: string }>(`/xxiv/api/template-library/${id}`, {
+      method: 'DELETE',
+    });
   },
 };
 

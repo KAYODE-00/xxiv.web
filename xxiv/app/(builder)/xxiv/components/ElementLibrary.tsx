@@ -31,14 +31,15 @@ import {
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { Component } from '@/types';
 import Image from 'next/image';
-import { getLayerFromTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys } from '@/lib/templates/blocks';
+import { getLayerFromTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys, instantiateTemplate } from '@/lib/templates/blocks';
 import { DEFAULT_ASSETS } from '@/lib/asset-constants';
 import { canHaveChildren, assignOrderClassToNewLayer, collectAllSettingsIds, generateUniqueSettingsId, findLayerById } from '@/lib/layer-utils';
 import { checkCircularReference, isCircularComponentReference } from '@/lib/component-utils';
 import { cn, generateId } from '@/lib/utils';
 import { toast } from 'sonner';
-import { componentsApi } from '@/lib/api';
+import { componentsApi, templateLibraryApi } from '@/lib/api';
 import type { Layer } from '@/types';
+import type { BuilderTemplateLibraryItem } from '@/lib/api';
 import ComponentCard from './ComponentCard';
 import SaveLayoutDialog from './SaveLayoutDialog';
 import { usePagesStore } from '@/stores/usePagesStore';
@@ -159,6 +160,16 @@ const elementCategories: Record<string, string[]> = {
   Form: ['form', 'filter', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label'],
   Utilities: ['map', 'slider', 'lightbox', 'localeSelector', 'htmlEmbed'],
 };
+
+interface LayoutLibraryItem {
+  id: string;
+  key: string;
+  name: string;
+  category: string;
+  previewImage?: string;
+  source: 'static' | 'db';
+  template?: BuilderTemplateLibraryItem;
+}
 
 /**
  * Check if a layer tree contains any inlined components
@@ -317,9 +328,13 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
   const hasComponentResults = !matchingComponentIds || matchingComponentIds.size > 0;
 
   const [isEditLayoutDialogOpen, setIsEditLayoutDialogOpen] = useState(false);
+  const [editingLayoutId, setEditingLayoutId] = useState<string>('');
   const [editingLayoutKey, setEditingLayoutKey] = useState<string>('');
   const [editingLayoutName, setEditingLayoutName] = useState<string>('');
   const [editingLayoutCategory, setEditingLayoutCategory] = useState<string>('Custom');
+  const [libraryLayouts, setLibraryLayouts] = useState<BuilderTemplateLibraryItem[]>([]);
+  const [libraryElements, setLibraryElements] = useState<BuilderTemplateLibraryItem[]>([]);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => {
     // Try to load from sessionStorage first
     if (typeof window !== 'undefined') {
@@ -336,6 +351,91 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
     const allCategories = Object.keys(getLayoutsByCategory());
     return new Set(allCategories.filter(cat => cat !== 'Navigation' && cat !== 'Hero' && cat !== 'Blog header' && cat !== 'Blog posts'));
   });
+
+  const loadTemplateLibrary = useCallback(async () => {
+    setIsLibraryLoading(true);
+    try {
+      const [layoutsResponse, elementsResponse] = await Promise.all([
+        templateLibraryApi.list('layout'),
+        templateLibraryApi.list('element'),
+      ]);
+
+      if (layoutsResponse.data) {
+        setLibraryLayouts(layoutsResponse.data);
+      }
+      if (elementsResponse.data) {
+        setLibraryElements(elementsResponse.data);
+      }
+
+      if (layoutsResponse.error) {
+        console.error('Failed to load layout library:', layoutsResponse.error);
+      }
+
+      if (elementsResponse.error) {
+        console.error('Failed to load element library:', elementsResponse.error);
+      }
+    } finally {
+      setIsLibraryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTemplateLibrary();
+  }, [loadTemplateLibrary]);
+
+  useEffect(() => {
+    const handleLibraryChanged = () => {
+      void loadTemplateLibrary();
+    };
+
+    window.addEventListener('builderTemplateLibraryChanged', handleLibraryChanged);
+    return () => window.removeEventListener('builderTemplateLibraryChanged', handleLibraryChanged);
+  }, [loadTemplateLibrary]);
+
+  const layoutLibraryItemsByCategory = useMemo<Record<string, LayoutLibraryItem[]>>(() => {
+    const grouped: Record<string, LayoutLibraryItem[]> = {};
+
+    Object.entries(getLayoutsByCategory()).forEach(([category, layoutKeys]) => {
+      grouped[category] = layoutKeys.map((layoutKey) => ({
+        id: layoutKey,
+        key: layoutKey,
+        name: layoutKey,
+        category,
+        previewImage: getLayoutPreviewImage(layoutKey),
+        source: 'static',
+      }));
+    });
+
+    libraryLayouts.forEach((template) => {
+      const category = template.category || 'Custom';
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+
+      grouped[category].push({
+        id: template.id,
+        key: template.key,
+        name: template.name,
+        category,
+        previewImage: template.preview_image_url || undefined,
+        source: 'db',
+        template,
+      });
+    });
+
+    return grouped;
+  }, [libraryLayouts]);
+
+  const builderElementGroups = useMemo<Record<string, BuilderTemplateLibraryItem[]>>(() => {
+    return libraryElements.reduce<Record<string, BuilderTemplateLibraryItem[]>>((groups, template) => {
+      const category = template.category || 'Custom';
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(template);
+      return groups;
+    }, {});
+  }, [libraryElements]);
 
   // Sync tab when explicitly requested (e.g., "Add layout" button)
   React.useEffect(() => {

@@ -3,10 +3,11 @@ import { unstable_noStore } from 'next/cache';
 import { fetchPageByPath, fetchErrorPage, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
-import { fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
-import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { fetchGlobalPageSettingsForSite } from '@/lib/generate-page-metadata';
+import { getScopedSettingByKey } from '@/lib/repositories/settingsRepository';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
 import type { Redirect as RedirectType } from '@/types';
+import { cookies } from 'next/headers';
 
 // Internal pagination path: always dynamic/no-store.
 export const dynamic = 'force-dynamic';
@@ -20,11 +21,15 @@ interface DynamicSlugPageProps {
 export default async function DynamicSlugPage({ params, searchParams }: DynamicSlugPageProps) {
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
+  const cookieStore = await cookies();
+  const xxivSiteId = typeof resolvedSearchParams.xxiv_site_id === 'string'
+    ? resolvedSearchParams.xxiv_site_id
+    : cookieStore.get('xxiv_site_id')?.value;
 
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
   const currentPath = `/${slugPath}`;
 
-  const redirects = await getSettingByKey('redirects') as RedirectType[] | null;
+  const redirects = await getScopedSettingByKey('redirects', xxivSiteId) as RedirectType[] | null;
   if (redirects && Array.isArray(redirects)) {
     const matchedRedirect = redirects.find((r) => r.oldUrl === currentPath);
     if (matchedRedirect) {
@@ -55,13 +60,13 @@ export default async function DynamicSlugPage({ params, searchParams }: DynamicS
     defaultPage: 1,
   };
 
-  const data = await fetchPageByPath(slugPath, true, paginationContext);
+  const data = await fetchPageByPath(slugPath, true, paginationContext, undefined, xxivSiteId);
 
   if (!data) {
     const errorPageData = await fetchErrorPage(404, true);
     if (errorPageData) {
       const { page, pageLayers, components } = errorPageData;
-      const publishedCSS = await getSettingByKey('published_css');
+      const publishedCSS = await getScopedSettingByKey('published_css', xxivSiteId);
 
       return (
         <PageRenderer
@@ -87,7 +92,7 @@ export default async function DynamicSlugPage({ params, searchParams }: DynamicS
 
     if (!protection.isUnlocked) {
       const errorPageData = await fetchErrorPage(401, true);
-      const publishedCSS = await getSettingByKey('published_css');
+      const publishedCSS = await getScopedSettingByKey('published_css', xxivSiteId);
 
       if (errorPageData) {
         const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
@@ -126,7 +131,7 @@ export default async function DynamicSlugPage({ params, searchParams }: DynamicS
     }
   }
 
-  const globalSettings = await fetchGlobalPageSettings();
+  const globalSettings = await fetchGlobalPageSettingsForSite(xxivSiteId);
 
   return (
     <PageRenderer
