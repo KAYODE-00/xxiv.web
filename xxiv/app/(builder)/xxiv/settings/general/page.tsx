@@ -129,6 +129,42 @@ export default function GeneralSettingsPage() {
   const faviconAsset = faviconAssetId ? assetsById[faviconAssetId] : null;
   const webClipAsset = webClipAssetId ? assetsById[webClipAssetId] : null;
 
+  useEffect(() => {
+    setGaMeasurementId(storedGaMeasurementId || '');
+  }, [storedGaMeasurementId]);
+
+  useEffect(() => {
+    setGoogleSiteVerification(storedGoogleSiteVerification || '');
+  }, [storedGoogleSiteVerification]);
+
+  useEffect(() => {
+    setGlobalCanonicalUrl(storedGlobalCanonicalUrl || '');
+  }, [storedGlobalCanonicalUrl]);
+
+  useEffect(() => {
+    setCustomCodeHead(storedCustomCodeHead || '');
+  }, [storedCustomCodeHead]);
+
+  useEffect(() => {
+    setCustomCodeBody(storedCustomCodeBody || '');
+  }, [storedCustomCodeBody]);
+
+  useEffect(() => {
+    setXxivBadge(storedXxivBadge ?? true);
+  }, [storedXxivBadge]);
+
+  useEffect(() => {
+    setTimezone(storedTimezone ?? 'UTC');
+  }, [storedTimezone]);
+
+  useEffect(() => {
+    setFaviconAssetId(storedFaviconAssetId || '');
+  }, [storedFaviconAssetId]);
+
+  useEffect(() => {
+    setWebClipAssetId(storedWebClipAssetId || '');
+  }, [storedWebClipAssetId]);
+
   // Derive activeSeoTab from sitemap mode
   const activeSeoTab = sitemapSettings.mode === 'auto'
     ? 'xxiv-sitemap'
@@ -181,12 +217,17 @@ export default function GeneralSettingsPage() {
   // Save website settings
   const saveWebsiteSettings = useCallback(async () => {
     setIsSavingWebsite(true);
-    await saveSettings({
+    const success = await saveSettings({
       xxiv_badge: xxivBadge,
       timezone,
       favicon_asset_id: faviconAssetId || null,
       web_clip_asset_id: webClipAssetId || null,
     });
+    if (success) {
+      toast.success('Website settings saved');
+    } else {
+      toast.error('Failed to save website settings');
+    }
     setIsSavingWebsite(false);
   }, [saveSettings, xxivBadge, timezone, faviconAssetId, webClipAssetId]);
 
@@ -389,7 +430,7 @@ export default function GeneralSettingsPage() {
                       />
                     ) : (
                       <Image
-                        src={'/xxiv-webclip.png'}
+                        src={'/ycode-webclip.png'}
                         alt="Web clip preview"
                         width={64}
                         height={64}

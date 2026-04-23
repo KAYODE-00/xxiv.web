@@ -203,7 +203,8 @@ export async function saveCSS(css: string, key: 'draft_css' | 'published_css'): 
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to save CSS: ${response.statusText}`);
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Failed to save CSS: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`);
   }
 
   // Update settings store to keep it in sync

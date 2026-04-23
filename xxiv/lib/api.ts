@@ -70,12 +70,22 @@ async function apiRequest<T>(
   if (!response.ok) {
     // Try to parse error message from response body
     try {
-      const json = await response.json();
+      const json = await response.clone().json();
       if (json.error) {
-        return { error: json.error };
+        const details = typeof json.details === 'string' ? ` (${json.details})` : '';
+        return { error: `${json.error}${details}` };
       }
     } catch {
-      // If parsing fails, fall back to status text
+      try {
+        const text = await response.text();
+        if (text.trim()) {
+          return {
+            error: `HTTP ${response.status}: ${text.trim()}`,
+          };
+        }
+      } catch {
+        // Fall through to status text below
+      }
     }
     return {
       error: `HTTP ${response.status}: ${response.statusText}`,

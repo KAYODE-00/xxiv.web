@@ -142,47 +142,36 @@ export async function setSettings(settings: Record<string, any>): Promise<number
     throw new Error('Failed to initialize Supabase client');
   }
 
-  // Separate entries: null/undefined values should be deleted, others upserted
-  const toUpsert: [string, any][] = [];
-  const toDelete: string[] = [];
-
+  // Use per-key operations instead of a mixed bulk upsert/delete.
+  // This is a little less efficient, but settings writes are tiny and it
+  // avoids production-only failures where one incompatible row shape causes
+  // the whole batch request to fail.
   for (const [key, value] of entries) {
     if (value === null || value === undefined) {
-      toDelete.push(key);
-    } else {
-      toUpsert.push([key, value]);
+      const { error } = await client
+        .from('settings')
+        .delete()
+        .eq('key', key);
+
+      if (error) {
+        throw new Error(`Failed to delete setting "${key}": ${error.message}`);
+      }
+
+      continue;
     }
-  }
-
-  // Delete settings with null values
-  if (toDelete.length > 0) {
-    const { error: deleteError } = await client
-      .from('settings')
-      .delete()
-      .in('key', toDelete);
-
-    if (deleteError) {
-      throw new Error(`Failed to delete settings: ${deleteError.message}`);
-    }
-  }
-
-  // Upsert settings with non-null values
-  if (toUpsert.length > 0) {
-    const now = new Date().toISOString();
-    const records = toUpsert.map(([key, value]) => ({
-      key,
-      value,
-      updated_at: now,
-    }));
 
     const { error } = await client
       .from('settings')
-      .upsert(records, {
+      .upsert({
+        key,
+        value,
+        updated_at: new Date().toISOString(),
+      }, {
         onConflict: 'key',
       });
 
     if (error) {
-      throw new Error(`Failed to set settings: ${error.message}`);
+      throw new Error(`Failed to set setting "${key}": ${error.message}`);
     }
   }
 

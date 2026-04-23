@@ -64,7 +64,11 @@ export async function PUT(
 
     await setSetting(key, value);
 
-    await clearAllCache();
+    try {
+      await clearAllCache();
+    } catch (cacheError) {
+      console.error(`[API Settings ${settingKey}] Cache clear failed:`, cacheError);
+    }
 
     return NextResponse.json({
       data: { key, value },
