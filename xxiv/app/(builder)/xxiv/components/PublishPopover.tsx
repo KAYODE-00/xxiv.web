@@ -68,6 +68,21 @@ export default function PublishPopover({
   const { getSettingByKey, updateSetting } = useSettingsStore();
   const publishedAt = getSettingByKey('published_at');
 
+  const buildPublishedSiteUrl = useCallback((siteUrl: string | null, pagePath: string) => {
+    if (!siteUrl) {
+      return `${baseUrl}${pagePath}`;
+    }
+
+    try {
+      const url = new URL(siteUrl);
+      const siteBasePath = url.pathname === '/' ? '' : url.pathname.replace(/\/$/, '');
+      url.pathname = `${siteBasePath}${pagePath || ''}` || '/';
+      return url.toString();
+    } catch {
+      return siteUrl;
+    }
+  }, [baseUrl]);
+
   useEffect(() => {
     setLiveUrl(xxivLiveUrl);
   }, [xxivLiveUrl]);
@@ -125,7 +140,8 @@ export default function PublishPopover({
           throw new Error(deployJson?.error || 'Site publish failed');
         }
 
-        resolvedLiveUrl = typeof deployJson?.url === 'string' ? deployJson.url : liveUrl;
+        const deployedSiteUrl = typeof deployJson?.url === 'string' ? deployJson.url : liveUrl;
+        resolvedLiveUrl = buildPublishedSiteUrl(deployedSiteUrl, publishedUrl);
         setLiveUrl(resolvedLiveUrl || null);
         onXxivPublishSuccess?.(resolvedLiveUrl || '');
       } else {
@@ -155,10 +171,10 @@ export default function PublishPopover({
     } finally {
       setIsPublishing(false);
     }
-  }, [baseUrl, liveUrl, onPublishSuccess, onXxivPublishSuccess, publishedUrl, setIsPublishing, updateSetting, xxivSiteId]);
+  }, [baseUrl, buildPublishedSiteUrl, liveUrl, onPublishSuccess, onXxivPublishSuccess, publishedUrl, setIsPublishing, updateSetting, xxivSiteId]);
 
   const handleCopyUrl = useCallback(async () => {
-    const urlToCopy = liveUrl || (baseUrl + publishedUrl);
+    const urlToCopy = buildPublishedSiteUrl(liveUrl, publishedUrl);
     if (!urlToCopy) return;
 
     try {
@@ -167,7 +183,7 @@ export default function PublishPopover({
     } catch {
       toast.error('Failed to copy URL');
     }
-  }, [baseUrl, liveUrl, publishedUrl]);
+  }, [buildPublishedSiteUrl, liveUrl, publishedUrl]);
 
   const handleRevertConfirm = useCallback(async () => {
     try {
@@ -200,11 +216,11 @@ export default function PublishPopover({
           <div>
             <Label>
               <a
-                href={baseUrl + publishedUrl}
+                href={buildPublishedSiteUrl(liveUrl || xxivLiveUrl, publishedUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                {baseUrl}
+                {buildPublishedSiteUrl(liveUrl || xxivLiveUrl, publishedUrl)}
               </a>
             </Label>
             <span className="text-popover-foreground text-[10px]">

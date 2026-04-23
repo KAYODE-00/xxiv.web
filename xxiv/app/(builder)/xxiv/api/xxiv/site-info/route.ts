@@ -1,5 +1,6 @@
 import { createDashboardClient, getAuthUser } from '@/lib/xxiv/server-client';
 import { NextRequest, NextResponse } from 'next/server';
+import { buildXxivSiteUrl } from '@/lib/url-utils';
 
 async function getAccessibleSite(
   supabase: Awaited<ReturnType<typeof createDashboardClient>>,
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
     const liveUrl =
       site.custom_domain && site.custom_domain_verified
         ? `https://${site.custom_domain}`
-        : site.live_url || null;
+        : buildXxivSiteUrl(site.slug, { fallbackOrigin: request.nextUrl.origin });
 
     return NextResponse.json({
       id: site.id,

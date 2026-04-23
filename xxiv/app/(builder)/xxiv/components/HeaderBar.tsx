@@ -80,6 +80,21 @@ export default function HeaderBar({
   onPublishSuccess,
   isSettingsRoute = false,
 }: HeaderBarProps) {
+  const buildPublishedSiteUrl = (siteUrl: string | null, pagePath: string) => {
+    if (!siteUrl) {
+      return `${baseUrl}${pagePath}`;
+    }
+
+    try {
+      const url = new URL(siteUrl);
+      const siteBasePath = url.pathname === '/' ? '' : url.pathname.replace(/\/$/, '');
+      url.pathname = `${siteBasePath}${pagePath || ''}` || '/';
+      return url.toString();
+    } catch {
+      return siteUrl;
+    }
+  };
+
   const router = useRouter();
   const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
@@ -290,24 +305,12 @@ export default function HeaderBar({
 
   const liveSiteUrl = useMemo(() => {
     if (!publishedUrl && !xxivLiveUrl) return baseUrl;
-    if (!xxivLiveUrl) return `${baseUrl}${publishedUrl}`;
-
-    try {
-      const liveBase = new URL(xxivLiveUrl);
-      return `${liveBase.origin}${publishedUrl}`;
-    } catch {
-      return xxivLiveUrl;
-    }
+    return buildPublishedSiteUrl(xxivLiveUrl, publishedUrl);
   }, [baseUrl, publishedUrl, xxivLiveUrl]);
 
   const liveSiteLabel = useMemo(() => {
-    if (!xxivLiveUrl) return baseUrl;
-    try {
-      return new URL(xxivLiveUrl).host;
-    } catch {
-      return xxivLiveUrl;
-    }
-  }, [baseUrl, xxivLiveUrl]);
+    return liveSiteUrl || baseUrl;
+  }, [baseUrl, liveSiteUrl]);
 
   // Apply theme to HTML element
   useEffect(() => {

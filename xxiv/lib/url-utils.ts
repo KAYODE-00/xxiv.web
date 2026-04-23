@@ -34,9 +34,11 @@ function normalizeSitePath(sitePath?: string): string {
 }
 
 function resolvePreferredBaseUrl(fallbackOrigin?: string | null): string | null {
+  let fallbackUrl: URL | null = null;
+
   if (fallbackOrigin) {
     try {
-      const fallbackUrl = new URL(fallbackOrigin);
+      fallbackUrl = new URL(fallbackOrigin);
       if (isLocalHostname(fallbackUrl.hostname)) {
         return fallbackOrigin;
       }
@@ -45,10 +47,32 @@ function resolvePreferredBaseUrl(fallbackOrigin?: string | null): string | null 
     }
   }
 
-  return process.env.NEXT_PUBLIC_SITE_URL
-    || process.env.NEXT_PUBLIC_APP_URL
-    || fallbackOrigin
-    || null;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || null;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || null;
+
+  if (siteUrl) {
+    try {
+      const parsedSiteUrl = new URL(siteUrl);
+      if (!fallbackUrl || !isLocalHostname(parsedSiteUrl.hostname) || isLocalHostname(fallbackUrl.hostname)) {
+        return siteUrl;
+      }
+    } catch {
+      return siteUrl;
+    }
+  }
+
+  if (appUrl) {
+    try {
+      const parsedAppUrl = new URL(appUrl);
+      if (!fallbackUrl || !isLocalHostname(parsedAppUrl.hostname) || isLocalHostname(fallbackUrl.hostname)) {
+        return appUrl;
+      }
+    } catch {
+      return appUrl;
+    }
+  }
+
+  return fallbackOrigin || null;
 }
 
 export function buildXxivSiteUrl(
