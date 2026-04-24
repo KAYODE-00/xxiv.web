@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { generateSiteThumbnail } from '@/lib/xxiv/site-thumbnail';
 
 export interface XxivSiteRecord {
   id: string;
@@ -12,6 +13,7 @@ export interface XxivSiteRecord {
   home_page_id: string | null;
   is_published: boolean | null;
   publish_status: string | null;
+  thumbnail_url?: string | null;
   mcp_token?: string | null;
   mcp_url?: string | null;
   created_at: string | null;
@@ -55,6 +57,25 @@ export async function createXxivSiteRecord(userId: string, name: string): Promis
 
   if (error || !data) {
     throw new Error(error?.message || 'Failed to create site');
+  }
+
+  try {
+    const thumbnailUrl = await generateSiteThumbnail(data.id, data.name);
+    const { data: updatedData, error: thumbnailError } = await admin
+      .from('xxiv_sites')
+      .update({
+        thumbnail_url: thumbnailUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', data.id)
+      .select('*')
+      .single();
+
+    if (!thumbnailError && updatedData) {
+      return updatedData;
+    }
+  } catch {
+    // Keep site creation successful even if thumbnail generation fails.
   }
 
   return data;

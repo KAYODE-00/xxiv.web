@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-auth';
-import { isAdminUser } from '@/lib/xxiv/admin';
 import { getImportedTemplateById, removeImportedTemplate } from '@/lib/services/templateService';
 import { deleteTemplateThumbnail } from '@/lib/thumbnail-upload';
 
@@ -27,10 +26,6 @@ export async function DELETE(
   const auth = await getAuthUser();
   if (!auth) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
-
-  if (!isAdminUser(auth.user)) {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 
   const { id } = await params;

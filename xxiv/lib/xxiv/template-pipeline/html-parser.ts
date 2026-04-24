@@ -40,12 +40,83 @@ const ATTRIBUTE_ALLOWLIST = new Set([
   'title',
 ]);
 
-function sanitizeHtml(html: string): string {
+export function cleanFrameworkHTML(html: string): string {
   return html
+    .replace(/<([a-zA-Z][\w:-]*)\b([^>]*?)\s+x-show=(["'])\s*[A-Za-z_$][\w.$]*\s*\3([^>]*)>[\s\S]*?<\/\1>/g, '')
+    .replace(/<([a-zA-Z][\w:-]*)\b([^>]*?)\s+v-show=(["'])\s*[A-Za-z_$][\w.$]*\s*\3([^>]*)>[\s\S]*?<\/\1>/g, '')
+    .replace(/<([a-zA-Z][\w:-]*)\b([^>]*?)\s+v-if=(["'])\s*[A-Za-z_$][\w.$]*\s*\3([^>]*)>[\s\S]*?<\/\1>/g, '')
+    // Alpine.js
+    .replace(/\s+x-data="[^"]*"/g, '')
+    .replace(/\s+x-data='[^']*'/g, '')
+    .replace(/\s+x-show="[^"]*"/g, '')
+    .replace(/\s+x-show='[^']*'/g, '')
+    .replace(/\s+x-cloak\b/g, '')
+    .replace(/\s+x-bind:[^=]+="[^"]*"/g, '')
+    .replace(/\s+x-bind:[^=]+='[^']*'/g, '')
+    .replace(/\s+x-on:[^=]+="[^"]*"/g, '')
+    .replace(/\s+x-on:[^=]+='[^']*'/g, '')
+    .replace(/\s+x-model="[^"]*"/g, '')
+    .replace(/\s+x-model='[^']*'/g, '')
+    .replace(/\s+x-if="[^"]*"/g, '')
+    .replace(/\s+x-if='[^']*'/g, '')
+    .replace(/\s+x-for="[^"]*"/g, '')
+    .replace(/\s+x-for='[^']*'/g, '')
+    .replace(/\s+x-text="[^"]*"/g, '')
+    .replace(/\s+x-text='[^']*'/g, '')
+    .replace(/\s+x-html="[^"]*"/g, '')
+    .replace(/\s+x-html='[^']*'/g, '')
+    .replace(/\s+x-ref="[^"]*"/g, '')
+    .replace(/\s+x-ref='[^']*'/g, '')
+    .replace(/\s+x-init="[^"]*"/g, '')
+    .replace(/\s+x-init='[^']*'/g, '')
+    .replace(/\s+x-transition[^=]*="[^"]*"/g, '')
+    .replace(/\s+x-transition[^=]*='[^']*'/g, '')
+    .replace(/\s+@\w+="[^"]*"/g, '')
+    .replace(/\s+@\w+='[^']*'/g, '')
+    .replace(/\s+@\w+\.\w+="[^"]*"/g, '')
+    .replace(/\s+@\w+\.\w+='[^']*'/g, '')
+    .replace(/\s+:class="[^"]*"/g, '')
+    .replace(/\s+:class='[^']*'/g, '')
+    .replace(/\s+:style="[^"]*"/g, '')
+    .replace(/\s+:style='[^']*'/g, '')
+    .replace(/\s+:src="[^"]*"/g, '')
+    .replace(/\s+:src='[^']*'/g, '')
+    .replace(/\s+:href="[^"]*"/g, '')
+    .replace(/\s+:href='[^']*'/g, '')
+    .replace(/\s+:\w+="[^"]*"/g, '')
+    .replace(/\s+:\w+='[^']*'/g, '')
+    // Vue.js
+    .replace(/\s+v-if="[^"]*"/g, '')
+    .replace(/\s+v-if='[^']*'/g, '')
+    .replace(/\s+v-show="[^"]*"/g, '')
+    .replace(/\s+v-show='[^']*'/g, '')
+    .replace(/\s+v-for="[^"]*"/g, '')
+    .replace(/\s+v-for='[^']*'/g, '')
+    .replace(/\s+v-model="[^"]*"/g, '')
+    .replace(/\s+v-model='[^']*'/g, '')
+    .replace(/\s+v-bind:[^=]+="[^"]*"/g, '')
+    .replace(/\s+v-bind:[^=]+='[^']*'/g, '')
+    .replace(/\s+v-on:[^=]+="[^"]*"/g, '')
+    .replace(/\s+v-on:[^=]+='[^']*'/g, '')
+    // React/JSX leftovers
+    .replace(/\s+onClick=\{[^}]*\}/g, '')
+    .replace(/\s+onChange=\{[^}]*\}/g, '')
+    .replace(/\s+className=/g, ' class=')
+    // Flowbite/data-* behavior hooks
+    .replace(/\s+data-(modal|dropdown|collapse|drawer|tabs|tooltip|popover|accordion)[^=]*="[^"]*"/gi, '')
+    .replace(/\s+data-(modal|dropdown|collapse|drawer|tabs|tooltip|popover|accordion)[^=]*='[^']*'/gi, '')
+    // HTMX
+    .replace(/\s+hx-[^=]+="[^"]*"/gi, '')
+    .replace(/\s+hx-[^=]+='[^']*'/gi, '')
+    // Generic JS handlers
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
     .replace(/\s+on\w+=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .trim();
+}
+
+export function deduplicateSiblings(html: string): string {
+  return html;
 }
 
 function sanitizeAttributeValue(value: string): string {
@@ -119,7 +190,8 @@ function convertNode(node: Node): ParsedNode | null {
     .map((child) => convertNode(child))
     .filter((child): child is ParsedNode => Boolean(child));
 
-  const nonTextChildren = convertedChildren.filter((child) => child.tag !== '#text');
+  const dedupedChildren = dedupeParsedChildren(convertedChildren);
+  const nonTextChildren = dedupedChildren.filter((child) => child.tag !== '#text');
   const textChildren = convertedChildren.filter((child) => child.tag === '#text');
   const flattenedText = textChildren.map((child) => child.textContent || '').join(' ').replace(/\s+/g, ' ').trim();
   const isTextOnly = nonTextChildren.length === 0 && Boolean(flattenedText);
@@ -135,8 +207,34 @@ function convertNode(node: Node): ParsedNode | null {
   };
 }
 
+function dedupeParsedChildren(children: ParsedNode[]): ParsedNode[] {
+  const seen = new Set<string>();
+
+  return children.filter((child) => {
+    if (child.tag === '#text') {
+      return true;
+    }
+
+    const fingerprint = [
+      child.tag,
+      child.classes.join(','),
+      child.attributes.href || '',
+      child.attributes.src || '',
+      child.textContent || '',
+      child.rawHtml || '',
+    ].join('|');
+
+    if ((child.tag === 'svg' || child.tag === 'path' || child.tag === 'button' || child.tag === 'div') && seen.has(fingerprint)) {
+      return false;
+    }
+
+    seen.add(fingerprint);
+    return true;
+  });
+}
+
 export function parseHTML(html: string): ParsedNode {
-  const cleaned = sanitizeHtml(html);
+  const cleaned = deduplicateSiblings(cleanFrameworkHTML(html));
   const root = parse(cleaned);
 
   const topLevelNodes = (root.childNodes || []).filter(isMeaningfulNode);

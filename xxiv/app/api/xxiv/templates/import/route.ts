@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-auth';
-import { isAdminUser } from '@/lib/xxiv/admin';
 import { runTemplatePipeline } from '@/lib/xxiv/template-pipeline/pipeline';
 
 export const dynamic = 'force-dynamic';
@@ -9,10 +8,6 @@ export async function POST(request: NextRequest) {
   const auth = await getAuthUser();
   if (!auth) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
-
-  if (!isAdminUser(auth.user)) {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 
   try {

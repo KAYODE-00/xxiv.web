@@ -25,6 +25,28 @@ function normalizeClasses(classes: string[]): string {
   return classes.join(' ').trim();
 }
 
+function dedupeChildren(children: ParsedNode[]): ParsedNode[] {
+  const seen = new Set<string>();
+
+  return children.filter((child) => {
+    const fingerprint = [
+      child.tag,
+      child.classes.join(','),
+      child.attributes.href || '',
+      child.attributes.src || '',
+      child.textContent || '',
+      child.rawHtml || '',
+    ].join('|');
+
+    if ((child.tag === 'svg' || child.tag === 'path' || child.tag === 'button' || child.tag === 'div') && seen.has(fingerprint)) {
+      return false;
+    }
+
+    seen.add(fingerprint);
+    return true;
+  });
+}
+
 function collectText(node: ParsedNode): string {
   const directText = node.textContent?.trim();
   if (directText) {
@@ -240,7 +262,7 @@ export function transformNodeToLayer(node: ParsedNode): Layer | null {
     return layer;
   }
 
-  layer.children = node.children
+  layer.children = dedupeChildren(node.children)
     .map((child) => transformNodeToLayer(child))
     .filter((child): child is Layer => Boolean(child));
 
