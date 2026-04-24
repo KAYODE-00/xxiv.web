@@ -6,9 +6,9 @@ import { createAiBuilderLog, updateAiBuilderLog } from '@/lib/ai-builder/logs';
 import { runAiSiteBuild, type XxivSiteRecord } from '@/lib/ai-builder/build';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 600;
+export const maxDuration = 300;
 
-const AI_BUILDER_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
+const AI_BUILDER_BUILD_TIMEOUT_MS = 5 * 60 * 1000;
 const SSE_HEARTBEAT_MS = 15 * 1000;
 
 function sseEvent(event: string, data: Record<string, unknown>) {
