@@ -216,6 +216,34 @@ export async function createImportedTemplateRecord(input: CreateImportedTemplate
   return data as XxivTemplateRecord;
 }
 
+export async function updateTemplateThumbnail(id: string, thumbnailUrl: string | null): Promise<void> {
+  const client = await getClient();
+  const { error } = await client
+    .from('xxiv_templates')
+    .update({
+      thumbnail_url: thumbnailUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  if (error) {
+    throw new Error(`Failed to update template thumbnail: ${error.message}`);
+  }
+}
+
+export async function deleteImportedTemplateRecord(id: string): Promise<void> {
+  const client = await getClient();
+  const { error } = await client
+    .from('xxiv_templates')
+    .delete()
+    .eq('id', id)
+    .contains('meta', { kind: 'imported_html_template' });
+
+  if (error) {
+    throw new Error(`Failed to delete imported template: ${error.message}`);
+  }
+}
+
 export async function getTemplatePages(templateId: string): Promise<XxivTemplatePageRecord[]> {
   const client = await getClient();
   const { data, error } = await client

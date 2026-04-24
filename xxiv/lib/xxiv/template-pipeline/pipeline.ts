@@ -2,7 +2,8 @@ import type { Layer } from '@/types';
 import { parseHTML } from './html-parser';
 import { transformNodeToLayer } from './layer-transformer';
 import { detectCategory, extractBlocks, type BlockType } from './block-extractor';
-import { createImportedTemplate } from '@/lib/services/templateService';
+import { createImportedTemplate, setImportedTemplateThumbnail } from '@/lib/services/templateService';
+import { generateImportedTemplateThumbnail } from '@/lib/xxiv/template-thumbnail';
 
 export interface PipelineInput {
   html: string;
@@ -74,6 +75,18 @@ export async function runTemplatePipeline(input: PipelineInput): Promise<Pipelin
           type: created.meta.type,
           category: created.category,
         });
+
+        try {
+          const thumbnailUrl = await generateImportedTemplateThumbnail({
+            id: created.id,
+            name: created.name,
+            meta: created.meta,
+            layers: created.layers || [],
+          });
+          await setImportedTemplateThumbnail(created.id, thumbnailUrl);
+        } catch (thumbnailError) {
+          errors.push(`Thumbnail generation skipped for "${block.name}": ${thumbnailError instanceof Error ? thumbnailError.message : 'Unknown error'}`);
+        }
       } catch (error) {
         errors.push(`Failed to save "${block.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
       }

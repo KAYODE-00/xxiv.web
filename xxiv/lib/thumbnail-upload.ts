@@ -76,3 +76,47 @@ export async function deleteThumbnail(componentId: string): Promise<void> {
     throw new Error(`Failed to delete thumbnail: ${error.message}`);
   }
 }
+
+export async function uploadTemplateThumbnail(templateId: string, imageBuffer: Buffer): Promise<string> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const webpBuffer = await convertToWebP(imageBuffer);
+  const storagePath = `${STORAGE_FOLDERS.TEMPLATES}/${templateId}.webp`;
+
+  const { data, error } = await client.storage
+    .from(STORAGE_BUCKET)
+    .upload(storagePath, webpBuffer, {
+      cacheControl: '3600',
+      upsert: true,
+      contentType: 'image/webp',
+    });
+
+  if (error) {
+    throw new Error(`Failed to upload template thumbnail: ${error.message}`);
+  }
+
+  const { data: urlData } = client.storage
+    .from(STORAGE_BUCKET)
+    .getPublicUrl(data.path);
+
+  return urlData.publicUrl;
+}
+
+export async function deleteTemplateThumbnail(templateId: string): Promise<void> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const storagePath = `${STORAGE_FOLDERS.TEMPLATES}/${templateId}.webp`;
+  const { error } = await client.storage.from(STORAGE_BUCKET).remove([storagePath]);
+
+  if (error) {
+    throw new Error(`Failed to delete template thumbnail: ${error.message}`);
+  }
+}

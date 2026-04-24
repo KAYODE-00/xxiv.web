@@ -61,10 +61,20 @@ export default function ImportTemplatePageClient() {
     <main className="min-h-screen bg-black px-6 py-10 text-white">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold">Import Template</h1>
-          <p className="mt-2 text-sm text-zinc-400">
-            Paste HTML, convert it into XXIV layer JSON, and publish the extracted layouts, blocks, and elements into the shared template library.
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-semibold">Import Template</h1>
+              <p className="mt-2 text-sm text-zinc-400">
+                Paste HTML, convert it into XXIV layer JSON, and publish the extracted layouts, blocks, and elements into the shared template library.
+              </p>
+            </div>
+            <a
+              href="/templates/manage"
+              className="rounded-lg border border-zinc-800 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-700 hover:text-white"
+            >
+              Manage Imports
+            </a>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="grid gap-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">

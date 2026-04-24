@@ -149,10 +149,27 @@ export default async function TemplateDetailPage({
                 </a>
               ) : null}
 
-              <TemplateBuildButton
-                href={`/templates/build/${template.id}`}
-                className="xxiv-template-detail-build-button"
-              />
+              {template.meta?.kind === 'imported_html_template' ? (
+                <Link
+                  href={`/templates/preview/${template.id}`}
+                  style={{
+                    textDecoration: 'none',
+                    textAlign: 'center',
+                    borderRadius: 14,
+                    border: '1px solid #1d1d1d',
+                    color: '#fff',
+                    padding: '14px 16px',
+                    fontSize: 14,
+                  }}
+                >
+                  Open Layer Preview
+                </Link>
+              ) : (
+                <TemplateBuildButton
+                  href={`/templates/build/${template.id}`}
+                  className="xxiv-template-detail-build-button"
+                />
+              )}
             </div>
           </aside>
         </div>

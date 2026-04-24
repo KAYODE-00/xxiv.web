@@ -19,6 +19,64 @@ export default async function TemplatePreviewPage({
     notFound();
   }
 
+  if (template.meta?.kind === 'imported_html_template' && Array.isArray(template.layers) && template.layers.length > 0) {
+    const mockPage: Page = {
+      id: template.id,
+      name: template.name,
+      slug: template.slug,
+      is_index: true,
+      order: 0,
+      depth: 0,
+      is_dynamic: false,
+      page_folder_id: null,
+      error_page: null,
+      settings: {},
+      is_published: true,
+      created_at: template.created_at,
+      updated_at: template.updated_at,
+      deleted_at: null,
+    };
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#000' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 20px',
+            borderBottom: '1px solid #1a1a1a',
+            background: '#0a0a0a',
+            color: '#fff',
+            position: 'sticky',
+            top: 0,
+            zIndex: 50,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Link
+              href={`/templates/${template.slug}`}
+              style={{ color: '#888', textDecoration: 'none', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              ← Back
+            </Link>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>
+              {template.name} <span style={{ color: '#666', fontWeight: 400, marginLeft: 4 }}>Preview</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, position: 'relative', background: '#fff' }}>
+          <PageRenderer
+            page={mockPage}
+            layers={template.layers}
+            components={[]}
+          />
+        </div>
+      </div>
+    );
+  }
+
   const pages = await getTemplatePages(templateId);
   if (!pages || pages.length === 0) {
     notFound();

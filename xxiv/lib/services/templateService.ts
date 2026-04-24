@@ -5,6 +5,7 @@ import { migrations } from '../migrations-loader';
 import { XXIV_EXTERNAL_API_URL } from '@/lib/config';
 import {
   createImportedTemplateRecord,
+  deleteImportedTemplateRecord,
   getTemplates as getXxivTemplates,
   getTemplateById as getXxivTemplateById,
   getTemplateBySlug as getXxivTemplateBySlug,
@@ -15,6 +16,7 @@ import {
   type ImportedTemplateType,
   type TemplateFilters,
   type XxivTemplateRecord,
+  updateTemplateThumbnail,
 } from '@/lib/repositories/templateRepository';
 import { buildXxivIndexSlug } from '@/lib/xxiv/index-slug';
 import { createXxivSiteRecord, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
@@ -194,6 +196,14 @@ export async function getImportedTemplateById(id: string): Promise<ImportedTempl
 export async function createImportedTemplate(input: CreateImportedTemplateData): Promise<ImportedTemplateRecord> {
   const created = await createImportedTemplateRecord(input);
   return created as ImportedTemplateRecord;
+}
+
+export async function setImportedTemplateThumbnail(id: string, thumbnailUrl: string | null): Promise<void> {
+  await updateTemplateThumbnail(id, thumbnailUrl);
+}
+
+export async function removeImportedTemplate(id: string): Promise<void> {
+  await deleteImportedTemplateRecord(id);
 }
 
 export async function getFeaturedTemplates(): Promise<XxivTemplate[]> {
