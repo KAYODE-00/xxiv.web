@@ -434,7 +434,7 @@ export interface LayerVariables {
   conditionalVisibility?: ConditionalVisibility;
 
   // Variables by type
-  text?: DynamicTextVariable | DynamicRichTextVariable;
+  text?: DynamicTextVariable | DynamicRichTextVariable | StaticTextVariable;
   icon?: {
     src?: AssetVariable | StaticTextVariable; // Static Asset ID | Static Text (SVG code, internal use only)
   };

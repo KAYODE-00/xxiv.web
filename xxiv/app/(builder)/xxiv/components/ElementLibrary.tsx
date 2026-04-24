@@ -171,6 +171,18 @@ interface LayoutLibraryItem {
   template?: BuilderTemplateLibraryItem;
 }
 
+interface ImportedTemplateLibraryItem {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  meta: {
+    type: 'layout' | 'block' | 'element';
+    source: 'flowbite' | 'prebuiltui' | 'internal' | 'other';
+  };
+  layers: Layer[];
+}
+
 /**
  * Check if a layer tree contains any inlined components
  */
@@ -335,6 +347,10 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
   const [libraryLayouts, setLibraryLayouts] = useState<BuilderTemplateLibraryItem[]>([]);
   const [libraryElements, setLibraryElements] = useState<BuilderTemplateLibraryItem[]>([]);
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
+  const [importedTemplates, setImportedTemplates] = useState<ImportedTemplateLibraryItem[]>([]);
+  const [importedLoading, setImportedLoading] = useState(false);
+  const [importedError, setImportedError] = useState<string | null>(null);
+  const [importedFilter, setImportedFilter] = useState<'all' | 'block' | 'element' | 'layout'>('all');
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => {
     // Try to load from sessionStorage first
     if (typeof window !== 'undefined') {
@@ -391,6 +407,31 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
     window.addEventListener('builderTemplateLibraryChanged', handleLibraryChanged);
     return () => window.removeEventListener('builderTemplateLibraryChanged', handleLibraryChanged);
   }, [loadTemplateLibrary]);
+
+  useEffect(() => {
+    if (activeTab !== 'layouts') return;
+
+    let cancelled = false;
+    setImportedLoading(true);
+    setImportedError(null);
+
+    fetch('/api/xxiv/templates/blocks')
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Failed to load library')))
+      .then((data) => {
+        if (cancelled) return;
+        setImportedTemplates(Array.isArray(data?.data) ? data.data : []);
+        setImportedLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setImportedError('Failed to load library');
+        setImportedLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   const layoutLibraryItemsByCategory = useMemo<Record<string, LayoutLibraryItem[]>>(() => {
     const grouped: Record<string, LayoutLibraryItem[]> = {};
@@ -1279,7 +1320,7 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
 
     if (!currentPageId) return;
 
-    const isAddingSection = templateLayer.name === 'section';
+    const isAddingSection = templateLayer.name === 'section' || templateLayer.settings?.tag === 'section';
     let parentId = selectedLayerId || 'body';
     if (isAddingSection) {
       parentId = 'body';
@@ -1455,6 +1496,24 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
   const handleAddLibraryElement = async (template: BuilderTemplateLibraryItem) => {
     const elementTemplate = instantiateTemplate(template.template);
     await insertLibraryTemplateLayer(elementTemplate, template.key);
+  };
+
+  const handleAddImportedTemplate = async (template: ImportedTemplateLibraryItem) => {
+    try {
+      const response = await fetch(`/api/xxiv/templates/${template.id}/apply`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success || !Array.isArray(data.layers) || data.layers.length === 0) {
+        toast.error('Failed to load template');
+        return;
+      }
+
+      await insertLibraryTemplateLayer(data.layers[0], template.slug);
+    } catch {
+      toast.error('Failed to add template');
+    }
   };
 
   const handleDeleteLayout = async (layoutKey: string, e: React.MouseEvent, templateId?: string) => {
@@ -1941,6 +2000,67 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
                 </div>
                   );
                 })}
+
+                <div className="mt-2 flex flex-col pt-6">
+                  <div className="mb-3 flex items-center justify-between px-1">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Template Library
+                    </span>
+                    <div className="flex gap-1">
+                      {(['all', 'layout', 'block', 'element'] as const).map((filterValue) => (
+                        <button
+                          key={filterValue}
+                          onClick={() => setImportedFilter(filterValue)}
+                          className={cn(
+                            'rounded px-2 py-0.5 text-xs',
+                            importedFilter === filterValue
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {filterValue}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {importedLoading ? (
+                    <div className="px-3 py-8 text-center text-xs text-muted-foreground">
+                      Loading library...
+                    </div>
+                  ) : null}
+
+                  {!importedLoading && importedTemplates.length === 0 ? (
+                    <div className="px-3 py-8 text-center">
+                      <div className="mb-1 text-sm font-medium text-muted-foreground">
+                        Template library not configured yet
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {importedError || 'Import HTML templates to get started'}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {!importedLoading && importedTemplates.length > 0 ? (
+                    <div className="flex flex-col gap-1 px-2">
+                      {importedTemplates
+                        .filter((template) => importedFilter === 'all' ? true : template.meta?.type === importedFilter)
+                        .map((template) => (
+                          <button
+                            key={template.id}
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
+                            onClick={() => handleAddImportedTemplate(template)}
+                          >
+                            <Icon name="layout" className="size-4 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{template.name}</span>
+                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                              {template.category}
+                            </span>
+                          </button>
+                        ))}
+                    </div>
+                  ) : null}
+                </div>
               </div>
             )}
           </TabsContent>

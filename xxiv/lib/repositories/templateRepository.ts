@@ -1,6 +1,18 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { Layer, PageSettings } from '@/types';
 
+export type ImportedTemplateType = 'layout' | 'block' | 'element';
+
+export interface ImportedTemplateMeta {
+  kind: 'imported_html_template';
+  type: ImportedTemplateType;
+  source: 'flowbite' | 'prebuiltui' | 'internal' | 'other';
+  category: string;
+  original_name: string;
+  schema_version: number;
+  imported_at: string;
+}
+
 export interface XxivTemplateRecord {
   id: string;
   name: string;
@@ -13,6 +25,8 @@ export interface XxivTemplateRecord {
   is_featured: boolean;
   is_published: boolean;
   sort_order: number;
+  layers?: Layer[] | null;
+  meta?: ImportedTemplateMeta | null;
   created_at: string;
   updated_at: string;
 }
@@ -43,6 +57,21 @@ export interface TemplateFilters {
   featuredOnly?: boolean;
   publishedOnly?: boolean;
   limit?: number;
+  includeImported?: boolean;
+  importedOnly?: boolean;
+  importedType?: ImportedTemplateType;
+  source?: ImportedTemplateMeta['source'];
+  offset?: number;
+}
+
+export interface CreateImportedTemplateData {
+  name: string;
+  slug: string;
+  description: string;
+  category: string;
+  tags: string[];
+  layers: Layer[];
+  meta: ImportedTemplateMeta;
 }
 
 async function getClient() {
@@ -63,6 +92,10 @@ export async function getTemplates(filters: TemplateFilters = {}): Promise<XxivT
     featuredOnly = false,
     publishedOnly = true,
     limit,
+    offset,
+    importedOnly = false,
+    importedType,
+    source,
   } = filters;
 
   let supabaseQuery = client
@@ -94,13 +127,29 @@ export async function getTemplates(filters: TemplateFilters = {}): Promise<XxivT
     supabaseQuery = supabaseQuery.limit(limit);
   }
 
+  if (typeof offset === 'number' && typeof limit === 'number') {
+    supabaseQuery = supabaseQuery.range(offset, offset + limit - 1);
+  }
+
   const { data, error } = await supabaseQuery;
 
   if (error) {
     throw new Error(`Failed to fetch templates: ${error.message}`);
   }
 
-  return (data || []) as XxivTemplateRecord[];
+  let templates = (data || []) as XxivTemplateRecord[];
+
+  templates = templates.filter((template) => {
+    const isImported = template.meta?.kind === 'imported_html_template';
+
+    if (importedOnly && !isImported) return false;
+    if (!filters.includeImported && !importedOnly && isImported) return false;
+    if (importedType && template.meta?.type !== importedType) return false;
+    if (source && template.meta?.source !== source) return false;
+    return true;
+  });
+
+  return templates;
 }
 
 export async function getTemplateBySlug(slug: string): Promise<XxivTemplateRecord | null> {
@@ -134,6 +183,34 @@ export async function getTemplateById(id: string): Promise<XxivTemplateRecord | 
       return null;
     }
     throw new Error(`Failed to fetch template: ${error.message}`);
+  }
+
+  return data as XxivTemplateRecord;
+}
+
+export async function createImportedTemplateRecord(input: CreateImportedTemplateData): Promise<XxivTemplateRecord> {
+  const client = await getClient();
+  const { data, error } = await client
+    .from('xxiv_templates')
+    .insert({
+      name: input.name,
+      slug: input.slug,
+      description: input.description,
+      category: input.category,
+      thumbnail_url: null,
+      preview_url: null,
+      tags: input.tags,
+      is_featured: false,
+      is_published: true,
+      sort_order: 0,
+      layers: input.layers,
+      meta: input.meta,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create imported template: ${error.message}`);
   }
 
   return data as XxivTemplateRecord;

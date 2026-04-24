@@ -4,11 +4,15 @@ import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { migrations } from '../migrations-loader';
 import { XXIV_EXTERNAL_API_URL } from '@/lib/config';
 import {
+  createImportedTemplateRecord,
   getTemplates as getXxivTemplates,
   getTemplateById as getXxivTemplateById,
   getTemplateBySlug as getXxivTemplateBySlug,
   getTemplateLayers,
   getTemplatePages,
+  type CreateImportedTemplateData,
+  type ImportedTemplateMeta,
+  type ImportedTemplateType,
   type TemplateFilters,
   type XxivTemplateRecord,
 } from '@/lib/repositories/templateRepository';
@@ -69,6 +73,10 @@ export interface ApplyTemplateResult {
 }
 
 export interface XxivTemplate extends XxivTemplateRecord {}
+export interface ImportedTemplateRecord extends XxivTemplateRecord {
+  meta: ImportedTemplateMeta;
+  layers: Layer[];
+}
 
 export interface CloneTemplateResult {
   template: XxivTemplate;
@@ -150,6 +158,42 @@ export async function getTemplates(filters: TemplateFilters = {}): Promise<XxivT
 
     return haystack.includes(query);
   });
+}
+
+export async function getImportedTemplates(filters: {
+  category?: string;
+  type?: ImportedTemplateType;
+  source?: ImportedTemplateMeta['source'];
+  limit?: number;
+  offset?: number;
+} = {}): Promise<ImportedTemplateRecord[]> {
+  const templates = await getXxivTemplates({
+    category: filters.category,
+    limit: filters.limit,
+    offset: filters.offset,
+    importedOnly: true,
+    includeImported: true,
+    importedType: filters.type,
+    source: filters.source,
+  });
+
+  return templates.filter((template): template is ImportedTemplateRecord => {
+    return template.meta?.kind === 'imported_html_template' && Array.isArray(template.layers);
+  });
+}
+
+export async function getImportedTemplateById(id: string): Promise<ImportedTemplateRecord | null> {
+  const template = await getXxivTemplateById(id);
+  if (!template || template.meta?.kind !== 'imported_html_template' || !Array.isArray(template.layers)) {
+    return null;
+  }
+
+  return template as ImportedTemplateRecord;
+}
+
+export async function createImportedTemplate(input: CreateImportedTemplateData): Promise<ImportedTemplateRecord> {
+  const created = await createImportedTemplateRecord(input);
+  return created as ImportedTemplateRecord;
 }
 
 export async function getFeaturedTemplates(): Promise<XxivTemplate[]> {
