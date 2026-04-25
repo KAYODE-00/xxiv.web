@@ -94,6 +94,19 @@ interface FileManagerDialogProps {
   category?: AssetCategoryFilter;
 }
 
+interface UnsplashPhoto {
+  id: string;
+  thumb: string;
+  regular: string;
+  full: string;
+  photographer: string;
+  photographerUrl: string;
+  altDescription: string;
+  width: number;
+  height: number;
+  color?: string | null;
+}
+
 interface FolderRowProps {
   node: FlattenedAssetFolderNode;
   isSelected: boolean;
@@ -544,6 +557,15 @@ export default function FileManagerDialog({
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [uploadingAssets, setUploadingAssets] = useState<Array<{ id: string; filename: string; file: File }>>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [unsplashQuery, setUnsplashQuery] = useState('nature');
+  const [debouncedUnsplashQuery, setDebouncedUnsplashQuery] = useState('nature');
+  const [unsplashResults, setUnsplashResults] = useState<UnsplashPhoto[]>([]);
+  const [unsplashLoading, setUnsplashLoading] = useState(false);
+  const [unsplashError, setUnsplashError] = useState<string | null>(null);
+  const [unsplashPage, setUnsplashPage] = useState(1);
+  const [unsplashTotalPages, setUnsplashTotalPages] = useState(0);
+  const [isUnsplashTab, setIsUnsplashTab] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   // Selected categories as array (null means 'all')
   const [selectedCategories, setSelectedCategories] = useState<AssetCategory[] | null>(
     () => normalizeCategoryFilter(category ?? null)
@@ -573,6 +595,7 @@ export default function FileManagerDialog({
   const remixLoadMoreRef = useRef<HTMLDivElement>(null);
 
   const isRemixIconsView = selectedFolderId === VIRTUAL_REMIX_ID;
+  const canShowUnsplash = selectedCategories === null || selectedCategories.includes(ASSET_CATEGORIES.IMAGES);
 
   // Get folders and store actions
   const folders = useAssetsStore((state) => state.folders);
@@ -622,6 +645,19 @@ export default function FileManagerDialog({
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedUnsplashQuery(unsplashQuery.trim() || 'nature');
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [unsplashQuery]);
+
+  useEffect(() => {
+    if (!canShowUnsplash && isUnsplashTab) {
+      setIsUnsplashTab(false);
+    }
+  }, [canShowUnsplash, isUnsplashTab]);
 
   // --- Remix Icons fetching ---
   const loadRemixIcons = useCallback(async (offset: number, reset: boolean = false) => {
@@ -745,6 +781,85 @@ export default function FileManagerDialog({
     }
   }, [fetchAssets, selectedFolderId, debouncedSearch, selectedCategories, getAllDescendantFolderIds, isLoadingAssets]);
 
+  const searchUnsplash = useCallback(async (query: string, page: number = 1) => {
+    setUnsplashLoading(true);
+    setUnsplashError(null);
+
+    try {
+      const response = await fetch(
+        `/xxiv/api/unsplash/search?q=${encodeURIComponent(query)}&page=${page}&per_page=20`
+      );
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Search failed');
+      }
+
+      setUnsplashResults((prev) => (page === 1 ? data.photos : [...prev, ...data.photos]));
+      setUnsplashTotalPages(data.totalPages || 0);
+      setUnsplashPage(page);
+    } catch (error) {
+      setUnsplashError(error instanceof Error ? error.message : 'Search failed');
+    } finally {
+      setUnsplashLoading(false);
+    }
+  }, []);
+
+  const handleUnsplashSelect = useCallback(async (photo: UnsplashPhoto) => {
+    setDownloadingId(photo.id);
+
+    try {
+      const response = await fetch('/xxiv/api/unsplash/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          photoUrl: photo.regular,
+          altDescription: photo.altDescription,
+          unsplashId: photo.id,
+          assetFolderId: selectedFolderId && !isVirtualFolder(selectedFolderId) ? selectedFolderId : null,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to add photo');
+      }
+
+      const asset = data.asset as Asset | undefined;
+      if (!asset) {
+        throw new Error('No asset returned');
+      }
+
+      addAsset(asset);
+      if (
+        !isUnsplashTab &&
+        (asset.asset_folder_id === selectedFolderId ||
+          (asset.asset_folder_id === null && selectedFolderId === null))
+      ) {
+        setAssets((prev) => (prev.some((existing) => existing.id === asset.id) ? prev : [asset, ...prev]));
+      } else if (
+        isUnsplashTab &&
+        (asset.asset_folder_id === selectedFolderId ||
+          (asset.asset_folder_id === null && selectedFolderId === null) ||
+          !selectedFolderId ||
+          isVirtualFolder(selectedFolderId))
+      ) {
+        setAssets((prev) => (prev.some((existing) => existing.id === asset.id) ? prev : [asset, ...prev]));
+      }
+
+      onAssetSelect?.(asset);
+      toast.success('Photo added to your files');
+    } catch (error) {
+      toast.error('Unable to add photo', {
+        description: error instanceof Error ? error.message : 'Unsplash download failed',
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  }, [addAsset, onAssetSelect, selectedFolderId, isUnsplashTab]);
+
   // Reset and reload when folder, search, or category changes (skip for virtual folders)
   useEffect(() => {
     if (isVirtualFolder(selectedFolderId)) return;
@@ -753,6 +868,14 @@ export default function FileManagerDialog({
     setHasMoreAssets(true);
     loadAssets(1, true);
   }, [selectedFolderId, debouncedSearch, selectedCategories]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isUnsplashTab || !canShowUnsplash) return;
+    setUnsplashResults([]);
+    setUnsplashPage(1);
+    setUnsplashTotalPages(0);
+    searchUnsplash(debouncedUnsplashQuery || 'nature', 1);
+  }, [isUnsplashTab, canShowUnsplash, debouncedUnsplashQuery, searchUnsplash]);
 
   // Infinite scroll observer (skip for virtual folders - they have their own)
   useEffect(() => {
@@ -1688,17 +1811,29 @@ export default function FileManagerDialog({
                     </InputGroupAddon>
 
                     <InputGroupInput
-                      placeholder="Search..."
+                      placeholder={isUnsplashTab ? 'Search free photos...' : 'Search...'}
                       autoFocus={false}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      value={isUnsplashTab ? unsplashQuery : searchQuery}
+                      onChange={(e) => {
+                        if (isUnsplashTab) {
+                          setUnsplashQuery(e.target.value);
+                        } else {
+                          setSearchQuery(e.target.value);
+                        }
+                      }}
                       autoComplete="off"
                     />
 
-                    {searchQuery.trim() && (
+                    {(isUnsplashTab ? unsplashQuery : searchQuery).trim() && (
                       <InputGroupAddon align="inline-end">
                         <button
-                          onClick={() => setSearchQuery('')}
+                          onClick={() => {
+                            if (isUnsplashTab) {
+                              setUnsplashQuery('');
+                            } else {
+                              setSearchQuery('');
+                            }
+                          }}
                           className="size-6 transition-opacity flex items-center justify-center cursor-pointer rounded-sm hover:bg-secondary/80"
                           aria-label="Clear search"
                         >
@@ -1796,6 +1931,27 @@ export default function FileManagerDialog({
                     </div>
                   </PopoverContent>
                 </Popover>
+
+                {canShowUnsplash && (
+                  <div className="flex items-center rounded-md border p-0.5">
+                    <Button
+                      size="sm"
+                      variant={isUnsplashTab ? 'secondary' : 'ghost'}
+                      className="h-7 px-2.5"
+                      onClick={() => setIsUnsplashTab(false)}
+                    >
+                      My Files
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={isUnsplashTab ? 'default' : 'ghost'}
+                      className="h-7 px-2.5"
+                      onClick={() => setIsUnsplashTab(true)}
+                    >
+                      Unsplash
+                    </Button>
+                  </div>
+                )}
 
                 <Separator orientation="vertical" className="h-7! shrink-0 mx-0.5" />
               </div>
@@ -2271,6 +2427,100 @@ export default function FileManagerDialog({
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
+                </>
+              ) : isUnsplashTab ? (
+                <>
+                  <div className="flex items-center justify-between gap-2 h-7">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <span className="text-foreground font-medium">Unsplash</span>
+                      {debouncedUnsplashQuery.trim() && (
+                        <>
+                          <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                          <span className="text-muted-foreground font-medium">
+                            &quot;{debouncedUnsplashQuery}&quot;
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{unsplashResults.length} photo{unsplashResults.length === 1 ? '' : 's'}</span>
+                    </div>
+                  </div>
+
+                  {unsplashLoading && unsplashResults.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <Spinner />
+                    </div>
+                  ) : unsplashError ? (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                      <div>Unable to load Unsplash photos</div>
+                      <div className="text-sm text-muted-foreground">{unsplashError}</div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => searchUnsplash(debouncedUnsplashQuery || 'nature', 1)}
+                      >
+                        Try again
+                      </Button>
+                    </div>
+                  ) : unsplashResults.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-1">
+                      <div>No photos found</div>
+                      <div className="text-sm text-muted-foreground">
+                        Try a different search term.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {unsplashResults.map((photo) => (
+                          <button
+                            key={photo.id}
+                            type="button"
+                            className="group text-left"
+                            onClick={() => handleUnsplashSelect(photo)}
+                            disabled={downloadingId === photo.id}
+                          >
+                            <div
+                              className="relative aspect-square overflow-hidden rounded-md border bg-secondary/30"
+                              style={{ backgroundColor: photo.color || undefined }}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={photo.thumb}
+                                alt={photo.altDescription}
+                                className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                                loading="lazy"
+                              />
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-white">
+                                <div className="truncate text-xs font-medium">{photo.altDescription}</div>
+                                <div className="truncate text-[11px] text-white/80">
+                                  {downloadingId === photo.id ? 'Adding to library...' : `Photo by ${photo.photographer} on Unsplash`}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+                        <span>
+                          Photos are attributed to their creators on Unsplash and downloaded into your library before use.
+                        </span>
+
+                        {unsplashPage < unsplashTotalPages && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => searchUnsplash(debouncedUnsplashQuery || 'nature', unsplashPage + 1)}
+                            disabled={unsplashLoading}
+                          >
+                            {unsplashLoading ? 'Loading...' : 'Load more photos'}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </>
