@@ -99,6 +99,7 @@ export function useLiveLayerUpdates(
         if (!channelName) return;
         
         const channel = supabase.channel(channelName);
+        channelRef.current = channel;
 
         // Listen for layer updates
         channel.on('broadcast', { event: 'layer_update' }, (payload) => {
@@ -138,10 +139,9 @@ export function useLiveLayerUpdates(
             isReceivingUpdates.current = true;
           }
         });
-
-        channelRef.current = channel;
       } catch (error) {
         console.error('Failed to initialize live updates:', error);
+        channelRef.current = null;
       }
     };
 

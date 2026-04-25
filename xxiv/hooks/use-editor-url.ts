@@ -239,10 +239,10 @@ export function useEditorUrl() {
       // Remove edit param — layers view is never in edit mode
       currentParams.delete('edit');
 
-      // Update/set specific params (use provided values or current values or defaults)
+      // Update/set specific params. Never inherit a selected layer from another page.
       currentParams.set('view', view || currentParams.get('view') || 'desktop');
       currentParams.set('tab', rightTab || currentParams.get('tab') || 'design');
-      currentParams.set('layer', layerId || currentParams.get('layer') || 'body');
+      currentParams.set('layer', layerId || 'body');
 
       const query = currentParams.toString();
       router.push(`/xxiv/layers/${pageId}?${query}`);
@@ -258,10 +258,10 @@ export function useEditorUrl() {
       // Remove edit param — navigating to page view means exiting edit mode
       currentParams.delete('edit');
 
-      // Update/set specific params (use provided values or current values or defaults)
+      // Update/set specific params. Never inherit a selected layer from another page.
       currentParams.set('view', view || currentParams.get('view') || 'desktop');
       currentParams.set('tab', rightTab || currentParams.get('tab') || 'design');
-      currentParams.set('layer', layerId || currentParams.get('layer') || 'body');
+      currentParams.set('layer', layerId || 'body');
 
       const query = currentParams.toString();
       router.push(`/xxiv/pages/${pageId}?${query}`);
