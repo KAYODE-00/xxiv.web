@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDashboardClient, getAuthUser } from '@/lib/xxiv/server-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { queueSiteThumbnailGeneration } from '@/lib/xxiv/site-management';
 import { buildXxivSiteUrl } from '@/lib/url-utils';
 
 export const dynamic = 'force-dynamic';
@@ -103,6 +104,8 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', xxivSiteId);
+
+    queueSiteThumbnailGeneration(xxivSiteId, site.name, { isLive: true });
 
     return NextResponse.json({
       success: true,

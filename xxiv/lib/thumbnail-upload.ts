@@ -7,6 +7,8 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import sharp from 'sharp';
 
+const UPLOAD_RETRY_DELAYS_MS = [250, 750, 1500];
+
 /**
  * Convert an image buffer to WebP format
  * @param imageBuffer - Raw image buffer (PNG, JPEG, etc.)
@@ -19,6 +21,61 @@ export async function convertToWebP(imageBuffer: Buffer, quality: number = 85): 
     .toBuffer();
 }
 
+function isRetriableStorageError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('bad gateway') ||
+    normalized.includes('gateway') ||
+    normalized.includes('timeout') ||
+    normalized.includes('timed out') ||
+    normalized.includes('econnreset') ||
+    normalized.includes('socket hang up') ||
+    normalized.includes('network')
+  );
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function uploadWithRetry(storagePath: string, imageBuffer: Buffer): Promise<string> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const webpBuffer = await convertToWebP(imageBuffer);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= UPLOAD_RETRY_DELAYS_MS.length; attempt += 1) {
+    const { data, error } = await client.storage
+      .from(STORAGE_BUCKET)
+      .upload(storagePath, webpBuffer, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: 'image/webp',
+      });
+
+    if (!error && data?.path) {
+      const { data: urlData } = client.storage
+        .from(STORAGE_BUCKET)
+        .getPublicUrl(data.path);
+
+      return urlData.publicUrl;
+    }
+
+    lastError = new Error(error?.message || 'Unknown thumbnail upload error');
+    if (!isRetriableStorageError(lastError.message) || attempt === UPLOAD_RETRY_DELAYS_MS.length) {
+      break;
+    }
+
+    await sleep(UPLOAD_RETRY_DELAYS_MS[attempt]);
+  }
+
+  throw new Error(`Failed to upload thumbnail: ${lastError?.message || 'Unknown error'}`);
+}
+
 /**
  * Upload a component thumbnail to Supabase Storage as WebP
  * Replaces existing thumbnail if present (upsert)
@@ -27,32 +84,8 @@ export async function convertToWebP(imageBuffer: Buffer, quality: number = 85): 
  * @returns Public URL of the uploaded thumbnail
  */
 export async function uploadThumbnail(componentId: string, imageBuffer: Buffer): Promise<string> {
-  const client = await getSupabaseAdmin();
-
-  if (!client) {
-    throw new Error('Supabase not configured');
-  }
-
-  const webpBuffer = await convertToWebP(imageBuffer);
   const storagePath = `${STORAGE_FOLDERS.COMPONENTS}/${componentId}.webp`;
-
-  const { data, error } = await client.storage
-    .from(STORAGE_BUCKET)
-    .upload(storagePath, webpBuffer, {
-      cacheControl: '3600',
-      upsert: true,
-      contentType: 'image/webp',
-    });
-
-  if (error) {
-    throw new Error(`Failed to upload thumbnail: ${error.message}`);
-  }
-
-  const { data: urlData } = client.storage
-    .from(STORAGE_BUCKET)
-    .getPublicUrl(data.path);
-
-  return urlData.publicUrl;
+  return uploadWithRetry(storagePath, imageBuffer);
 }
 
 /**
@@ -78,32 +111,8 @@ export async function deleteThumbnail(componentId: string): Promise<void> {
 }
 
 export async function uploadTemplateThumbnail(templateId: string, imageBuffer: Buffer): Promise<string> {
-  const client = await getSupabaseAdmin();
-
-  if (!client) {
-    throw new Error('Supabase not configured');
-  }
-
-  const webpBuffer = await convertToWebP(imageBuffer);
   const storagePath = `${STORAGE_FOLDERS.TEMPLATES}/${templateId}.webp`;
-
-  const { data, error } = await client.storage
-    .from(STORAGE_BUCKET)
-    .upload(storagePath, webpBuffer, {
-      cacheControl: '3600',
-      upsert: true,
-      contentType: 'image/webp',
-    });
-
-  if (error) {
-    throw new Error(`Failed to upload template thumbnail: ${error.message}`);
-  }
-
-  const { data: urlData } = client.storage
-    .from(STORAGE_BUCKET)
-    .getPublicUrl(data.path);
-
-  return urlData.publicUrl;
+  return uploadWithRetry(storagePath, imageBuffer);
 }
 
 export async function deleteTemplateThumbnail(templateId: string): Promise<void> {

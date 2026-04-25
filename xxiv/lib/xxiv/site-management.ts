@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { generateSiteThumbnail } from '@/lib/xxiv/site-thumbnail';
+import { generateAndStoreThumbnail } from '@/lib/xxiv/site-thumbnail';
 
 export interface XxivSiteRecord {
   id: string;
@@ -59,26 +59,35 @@ export async function createXxivSiteRecord(userId: string, name: string): Promis
     throw new Error(error?.message || 'Failed to create site');
   }
 
-  try {
-    const thumbnailUrl = await generateSiteThumbnail(data.id, data.name);
-    const { data: updatedData, error: thumbnailError } = await admin
+  return data;
+}
+
+export function queueSiteThumbnailGeneration(
+  siteId: string,
+  siteName: string,
+  options?: { isLive?: boolean },
+): void {
+  void (async () => {
+    const admin = await getSupabaseAdmin();
+    if (!admin) {
+      return;
+    }
+
+    const thumbnailUrl = await generateAndStoreThumbnail(siteName, siteId, options);
+    if (!thumbnailUrl) {
+      return;
+    }
+
+    await admin
       .from('xxiv_sites')
       .update({
         thumbnail_url: thumbnailUrl,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', data.id)
-      .select('*')
-      .single();
-
-    if (!thumbnailError && updatedData) {
-      return updatedData;
-    }
-  } catch {
-    // Keep site creation successful even if thumbnail generation fails.
-  }
-
-  return data;
+      .eq('id', siteId);
+  })().catch((error) => {
+    console.error('[site-thumbnail] Background update failed:', error);
+  });
 }
 
 export async function setXxivSiteHomePage(siteId: string, pageId: string): Promise<void> {

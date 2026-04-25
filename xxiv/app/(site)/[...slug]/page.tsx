@@ -9,6 +9,8 @@ import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
 import { getScopedSettingByKey } from '@/lib/repositories/settingsRepository';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
+import { enforceSiteLogin } from '@/lib/xxiv/site-auth-guard';
+import { getSupabasePublicConfig } from '@/lib/xxiv/site-context';
 import { getSiteBaseUrl } from '@/lib/url-utils';
 import type { Page, PageFolder, Translation, Redirect as RedirectType } from '@/types';
 import { cookies } from 'next/headers';
@@ -369,6 +371,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   // Load all global settings early so error pages also get global custom code
   const globalSettings = await fetchCachedGlobalSettings(xxivSiteId);
+  const siteAuth = xxivSiteId ? await getSupabasePublicConfig() : null;
 
   // If page not found, try to show custom 404 error page
   if (!data) {
@@ -396,57 +399,56 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   const { page, pageLayers, components, collectionItem, collectionFields, locale, availableLocales, translations } = data;
 
-  // Check password protection for this page.
-  // First evaluate without cookies() so non-protected pages stay cacheable.
-  const folders = await fetchCachedFoldersForAuth();
-  const protectionCheck = getPasswordProtection(page, folders, null);
+  if (page.settings?.requireSiteLogin) {
+    await enforceSiteLogin(page.settings, xxivSiteId, currentPath);
+  } else {
+    const folders = await fetchCachedFoldersForAuth();
+    const protectionCheck = getPasswordProtection(page, folders, null);
 
-  // If page is protected, read auth cookie and re-check unlock state.
-  if (protectionCheck.isProtected) {
-    const authCookie = await parseAuthCookie();
-    const protection = getPasswordProtection(page, folders, authCookie);
+    if (protectionCheck.isProtected) {
+      const authCookie = await parseAuthCookie();
+      const protection = getPasswordProtection(page, folders, authCookie);
 
-    // If page is protected and not unlocked, show 401 error page
-    if (!protection.isUnlocked) {
-      const errorPageData = await fetchCachedErrorPage(401);
+      if (!protection.isUnlocked) {
+        const errorPageData = await fetchCachedErrorPage(401);
 
-      if (errorPageData) {
-        const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
+        if (errorPageData) {
+          const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
+
+          return (
+            <PageRenderer
+              page={errorPage}
+              layers={errorPageLayers.layers || []}
+              components={errorComponents}
+              generatedCss={globalSettings.publishedCss || undefined}
+              globalCustomCodeHead={globalSettings.globalCustomCodeHead}
+              globalCustomCodeBody={globalSettings.globalCustomCodeBody}
+              passwordProtection={{
+                pageId: protection.protectedBy === 'page' ? protection.protectedById : undefined,
+                folderId: protection.protectedBy === 'folder' ? protection.protectedById : undefined,
+                redirectUrl: currentPath,
+                isPublished: true,
+              }}
+            />
+          );
+        }
 
         return (
-          <PageRenderer
-            page={errorPage}
-            layers={errorPageLayers.layers || []}
-            components={errorComponents}
-            generatedCss={globalSettings.publishedCss || undefined}
-            globalCustomCodeHead={globalSettings.globalCustomCodeHead}
-            globalCustomCodeBody={globalSettings.globalCustomCodeBody}
-            passwordProtection={{
-              pageId: protection.protectedBy === 'page' ? protection.protectedById : undefined,
-              folderId: protection.protectedBy === 'folder' ? protection.protectedById : undefined,
-              redirectUrl: currentPath,
-              isPublished: true,
-            }}
-          />
+          <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="text-center max-w-md px-4">
+              <h1 className="text-6xl font-bold text-gray-900 mb-4">401</h1>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Password Protected</h2>
+              <p className="text-gray-600 mb-8">Enter the password to continue.</p>
+              <PasswordForm
+                pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
+                folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
+                redirectUrl={currentPath}
+                isPublished={true}
+              />
+            </div>
+          </div>
         );
       }
-
-      // Inline fallback if no custom 401 page exists
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-white">
-          <div className="text-center max-w-md px-4">
-            <h1 className="text-6xl font-bold text-gray-900 mb-4">401</h1>
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Password Protected</h2>
-            <p className="text-gray-600 mb-8">Enter the password to continue.</p>
-            <PasswordForm
-              pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
-              folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
-              redirectUrl={currentPath}
-              isPublished={true}
-            />
-          </div>
-        </div>
-      );
     }
   }
 
@@ -467,6 +469,7 @@ export default async function Page({ params, searchParams }: PageProps) {
       globalCustomCodeHead={globalSettings.globalCustomCodeHead}
       globalCustomCodeBody={globalSettings.globalCustomCodeBody}
       xxivBadge={globalSettings.xxivBadge}
+      siteAuth={siteAuth && xxivSiteId ? { siteId: xxivSiteId, supabaseUrl: siteAuth.url, supabaseAnonKey: siteAuth.anonKey } : null}
     />
   );
 }

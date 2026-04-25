@@ -19,7 +19,7 @@ import {
   updateTemplateThumbnail,
 } from '@/lib/repositories/templateRepository';
 import { buildXxivIndexSlug } from '@/lib/xxiv/index-slug';
-import { createXxivSiteRecord, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
+import { createXxivSiteRecord, queueSiteThumbnailGeneration, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
 import type { Layer, PageSettings } from '@/types';
 
 /**
@@ -242,6 +242,7 @@ export async function cloneTemplateToUserSite(templateId: string, userId: string
 
   const nameToUse = siteName?.trim() || template.name;
   const site = await createXxivSiteRecord(userId, nameToUse);
+  queueSiteThumbnailGeneration(site.id, site.name);
   const pageIdMap = new Map<string, string>();
   const createdPages: Array<{ id: string; is_index: boolean; page_order: number }> = [];
 

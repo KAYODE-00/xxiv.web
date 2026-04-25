@@ -96,5 +96,11 @@ export async function generateImportedTemplateThumbnail(input: {
 }): Promise<string> {
   const svg = renderPreviewSvg(input.name, input.meta, input.layers);
   const buffer = await sharp(Buffer.from(svg)).png().toBuffer();
-  return uploadTemplateThumbnail(input.id, buffer);
+
+  try {
+    return await uploadTemplateThumbnail(input.id, buffer);
+  } catch (error) {
+    console.warn(`[template-thumbnail] Falling back to inline thumbnail for ${input.id}:`, error);
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  }
 }

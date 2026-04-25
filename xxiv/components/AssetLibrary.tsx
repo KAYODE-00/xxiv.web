@@ -151,7 +151,7 @@ export default function AssetLibrary({
                 {onAssetSelect && (
                   <button
                     onClick={() => onAssetSelect(asset)}
-                    className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                    className="rounded bg-primary px-3 py-1 text-xs text-primary-foreground hover:bg-primary/90"
                   >
                     Use
                   </button>

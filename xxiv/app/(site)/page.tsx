@@ -5,6 +5,8 @@ import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
 import { generatePageMetadata, fetchGlobalPageSettingsForSite } from '@/lib/generate-page-metadata';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
+import { enforceSiteLogin } from '@/lib/xxiv/site-auth-guard';
+import { getSupabasePublicConfig } from '@/lib/xxiv/site-context';
 import { getSiteBaseUrl } from '@/lib/url-utils';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
@@ -114,58 +116,58 @@ export default async function Home({
 
   // Load all global settings early so error pages also get global custom code
   const globalSettings = await fetchCachedGlobalSettings(xxivSiteId);
+  const siteAuth = xxivSiteId ? await getSupabasePublicConfig() : null;
 
-  // Check password protection for homepage.
-  // First evaluate without cookies() so non-protected pages can stay cacheable.
-  const folders = await fetchCachedFoldersForAuth();
-  const protectionCheck = getPasswordProtection(data.page, folders, null);
+  if (data.page.settings?.requireSiteLogin) {
+    await enforceSiteLogin(data.page.settings, xxivSiteId, '/');
+  } else {
+    const folders = await fetchCachedFoldersForAuth();
+    const protectionCheck = getPasswordProtection(data.page, folders, null);
 
-  // If homepage is protected, read auth cookie and re-check unlock state.
-  if (protectionCheck.isProtected) {
-    const authCookie = await parseAuthCookie();
-    const protection = getPasswordProtection(data.page, folders, authCookie);
+    if (protectionCheck.isProtected) {
+      const authCookie = await parseAuthCookie();
+      const protection = getPasswordProtection(data.page, folders, authCookie);
 
-    // If homepage is protected and not unlocked, show 401 error page
-    if (!protection.isUnlocked) {
-      const errorPageData = await fetchCachedErrorPage(401);
+      if (!protection.isUnlocked) {
+        const errorPageData = await fetchCachedErrorPage(401);
 
-      if (errorPageData) {
-        const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
+        if (errorPageData) {
+          const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
+
+          return (
+            <PageRenderer
+              page={errorPage}
+              layers={errorPageLayers.layers || []}
+              components={errorComponents}
+              generatedCss={globalSettings.publishedCss || undefined}
+              globalCustomCodeHead={globalSettings.globalCustomCodeHead}
+              globalCustomCodeBody={globalSettings.globalCustomCodeBody}
+              passwordProtection={{
+                pageId: protection.protectedBy === 'page' ? protection.protectedById : undefined,
+                folderId: protection.protectedBy === 'folder' ? protection.protectedById : undefined,
+                redirectUrl: '/',
+                isPublished: true,
+              }}
+            />
+          );
+        }
 
         return (
-          <PageRenderer
-            page={errorPage}
-            layers={errorPageLayers.layers || []}
-            components={errorComponents}
-            generatedCss={globalSettings.publishedCss || undefined}
-            globalCustomCodeHead={globalSettings.globalCustomCodeHead}
-            globalCustomCodeBody={globalSettings.globalCustomCodeBody}
-            passwordProtection={{
-              pageId: protection.protectedBy === 'page' ? protection.protectedById : undefined,
-              folderId: protection.protectedBy === 'folder' ? protection.protectedById : undefined,
-              redirectUrl: '/',
-              isPublished: true,
-            }}
-          />
+          <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="text-center max-w-md px-4">
+              <h1 className="text-6xl font-bold text-gray-900 mb-4">401</h1>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Password Protected</h2>
+              <p className="text-gray-600 mb-8">Enter the password to continue.</p>
+              <PasswordForm
+                pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
+                folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
+                redirectUrl="/"
+                isPublished={true}
+              />
+            </div>
+          </div>
         );
       }
-
-      // Inline fallback if no custom 401 page exists
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-white">
-          <div className="text-center max-w-md px-4">
-            <h1 className="text-6xl font-bold text-gray-900 mb-4">401</h1>
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Password Protected</h2>
-            <p className="text-gray-600 mb-8">Enter the password to continue.</p>
-            <PasswordForm
-              pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
-              folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
-              redirectUrl="/"
-              isPublished={true}
-            />
-          </div>
-        </div>
-      );
     }
   }
 
@@ -184,6 +186,7 @@ export default async function Home({
       globalCustomCodeHead={globalSettings.globalCustomCodeHead}
       globalCustomCodeBody={globalSettings.globalCustomCodeBody}
       xxivBadge={globalSettings.xxivBadge}
+      siteAuth={siteAuth && xxivSiteId ? { siteId: xxivSiteId, supabaseUrl: siteAuth.url, supabaseAnonKey: siteAuth.anonKey } : null}
     />
   );
 }

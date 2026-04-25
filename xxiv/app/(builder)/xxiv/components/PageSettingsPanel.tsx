@@ -136,6 +136,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const [authEnabled, setAuthEnabled] = useState(false);
   const [authPassword, setAuthPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [requireSiteLogin, setRequireSiteLogin] = useState(false);
 
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [slugFieldId, setSlugFieldId] = useState<string | null>(null);
@@ -209,6 +210,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     customCodeBody: string;
     authEnabled: boolean;
     authPassword: string;
+    requireSiteLogin: boolean;
     collectionId: string | null;
     slugFieldId: string | null;
   } | null>(null);
@@ -359,6 +361,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       customCodeBody !== initial.customCodeBody ||
       authEnabled !== initial.authEnabled ||
       authPassword !== initial.authPassword ||
+      requireSiteLogin !== initial.requireSiteLogin ||
       collectionId !== initial.collectionId ||
       slugFieldId !== initial.slugFieldId
     );
@@ -370,7 +373,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
     return hasChanges;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImage, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, saveCounter]);
+  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImage, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, requireSiteLogin, collectionId, slugFieldId, saveCounter]);
 
   // Expose method to check for unsaved changes externally
   useImperativeHandle(ref, () => ({
@@ -455,6 +458,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
           initialValuesRef.current.customCodeBody = settings?.custom_code?.body || '';
           initialValuesRef.current.authEnabled = settings?.auth?.enabled || false;
           initialValuesRef.current.authPassword = settings?.auth?.password || '';
+          initialValuesRef.current.requireSiteLogin = settings?.requireSiteLogin || false;
           initialValuesRef.current.collectionId = settings?.cms?.collection_id || null;
           initialValuesRef.current.slugFieldId = settings?.cms?.slug_field_id || null;
         }
@@ -481,6 +485,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       customCodeBody !== initialValuesRef.current.customCodeBody ||
       authEnabled !== initialValuesRef.current.authEnabled ||
       authPassword !== initialValuesRef.current.authPassword ||
+      requireSiteLogin !== initialValuesRef.current.requireSiteLogin ||
       collectionId !== initialValuesRef.current.collectionId ||
       slugFieldId !== initialValuesRef.current.slugFieldId
     );
@@ -522,6 +527,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       const initialCustomCodeBody = settings?.custom_code?.body || '';
       const initialAuthEnabled = settings?.auth?.enabled || false;
       const initialAuthPassword = settings?.auth?.password || '';
+      const initialRequireSiteLogin = settings?.requireSiteLogin || false;
       const initialCollectionId = settings?.cms?.collection_id || null;
       const initialSlugFieldId = settings?.cms?.slug_field_id || null;
 
@@ -540,6 +546,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         customCodeBody: initialCustomCodeBody,
         authEnabled: initialAuthEnabled,
         authPassword: initialAuthPassword,
+        requireSiteLogin: initialRequireSiteLogin,
         collectionId: initialCollectionId,
         slugFieldId: initialSlugFieldId,
       };
@@ -556,6 +563,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setCustomCodeBody(initialCustomCodeBody);
       setAuthEnabled(initialAuthEnabled);
       setAuthPassword(initialAuthPassword);
+      setRequireSiteLogin(initialRequireSiteLogin);
       setCollectionId(initialCollectionId);
       setSlugFieldId(initialSlugFieldId);
     } else {
@@ -573,6 +581,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         customCodeBody: '',
         authEnabled: false,
         authPassword: '',
+        requireSiteLogin: false,
         collectionId: null,
         slugFieldId: null,
       };
@@ -589,6 +598,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setCustomCodeBody('');
       setAuthEnabled(false);
       setAuthPassword('');
+      setRequireSiteLogin(false);
       setCollectionId(null);
       setSlugFieldId(null);
     }
@@ -833,6 +843,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         setCustomCodeBody(initialValuesRef.current.customCodeBody);
         setAuthEnabled(initialValuesRef.current.authEnabled);
         setAuthPassword(initialValuesRef.current.authPassword);
+        setRequireSiteLogin(initialValuesRef.current.requireSiteLogin);
         setCollectionId(initialValuesRef.current.collectionId);
         setSlugFieldId(initialValuesRef.current.slugFieldId);
       }
@@ -860,6 +871,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         setCustomCodeBody(initialValuesRef.current.customCodeBody);
         setAuthEnabled(initialValuesRef.current.authEnabled);
         setAuthPassword(initialValuesRef.current.authPassword);
+        setRequireSiteLogin(initialValuesRef.current.requireSiteLogin);
         setCollectionId(initialValuesRef.current.collectionId);
         setSlugFieldId(initialValuesRef.current.slugFieldId);
       }
@@ -1006,9 +1018,10 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       const settings: PageSettings = {
         ...existingSettings,
         auth: {
-          enabled: authEnabled,
-          password: authPassword.trim(),
+          enabled: requireSiteLogin ? false : authEnabled,
+          password: requireSiteLogin ? '' : authPassword.trim(),
         },
+        requireSiteLogin,
         seo: {
           title: seoTitle.trim(),
           description: seoDescription.trim(),
@@ -1045,7 +1058,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       const normalizedSeoNoindex = isErrorPage ? true : seoNoindex;
       const trimmedCustomCodeHead = customCodeHead.trim();
       const trimmedCustomCodeBody = customCodeBody.trim();
-      const trimmedAuthPassword = authPassword.trim();
+      const trimmedAuthPassword = requireSiteLogin ? '' : authPassword.trim();
 
       setName(trimmedName);
       setSlug(trimmedSlug);
@@ -1074,8 +1087,9 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         seoNoindex: normalizedSeoNoindex,
         customCodeHead: trimmedCustomCodeHead,
         customCodeBody: trimmedCustomCodeBody,
-        authEnabled,
+        authEnabled: requireSiteLogin ? false : authEnabled,
         authPassword: trimmedAuthPassword,
+        requireSiteLogin,
         collectionId: savedCollectionId,
         slugFieldId: savedSlugFieldId,
       };
@@ -1391,6 +1405,30 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
                     <Field orientation="horizontal" className="flex flex-row-reverse!">
                       <FieldContent>
+                        <FieldLabel htmlFor="requireSiteLogin">
+                          Require site login
+                        </FieldLabel>
+                        <FieldDescription>
+                          Only logged-in site members can view this page.
+                        </FieldDescription>
+                      </FieldContent>
+                      <Checkbox
+                        id="requireSiteLogin"
+                        checked={requireSiteLogin}
+                        onCheckedChange={(checked) => {
+                          const enabled = checked === true;
+                          setRequireSiteLogin(enabled);
+                          if (enabled) {
+                            setAuthEnabled(false);
+                            setAuthPassword('');
+                          }
+                        }}
+                        disabled={isErrorPage}
+                      />
+                    </Field>
+
+                    <Field orientation="horizontal" className="flex flex-row-reverse!">
+                      <FieldContent>
                         <FieldLabel htmlFor="passwordProtected">
                           Password protected
                         </FieldLabel>
@@ -1402,11 +1440,11 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                         id="passwordProtected"
                         checked={authEnabled}
                         onCheckedChange={(checked) => setAuthEnabled(checked === true)}
-                        disabled={isErrorPage}
+                        disabled={isErrorPage || requireSiteLogin}
                       />
                     </Field>
 
-                    {authEnabled && (
+                    {authEnabled && !requireSiteLogin && (
                       <Field>
                         <FieldLabel>Password</FieldLabel>
                         <div className="flex gap-1.5">

@@ -122,6 +122,11 @@ interface PageRendererProps {
   globalCustomCodeBody?: string | null;
   xxivBadge?: boolean;
   passwordProtection?: PasswordProtectionContext;
+  siteAuth?: {
+    siteId: string;
+    supabaseUrl: string;
+    supabaseAnonKey: string;
+  } | null;
 }
 
 /**
@@ -145,6 +150,20 @@ function extractBodyLayer(layers: Layer[]): { bodyClasses: string; childLayers: 
   };
 }
 
+function hasSiteAuthLayer(layers: Layer[]): boolean {
+  for (const layer of layers) {
+    if (layer.settings?.customAttributes?.['data-xxiv-auth']) {
+      return true;
+    }
+
+    if (layer.children && hasSiteAuthLayer(layer.children)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export default async function PageRenderer({
   page,
   layers,
@@ -163,6 +182,7 @@ export default async function PageRenderer({
   globalCustomCodeBody,
   xxivBadge = true,
   passwordProtection,
+  siteAuth,
 }: PageRendererProps) {
   // Check if this is a 401 error page that needs password form
   const is401Page = page.error_page === 401;
@@ -264,6 +284,9 @@ export default async function PageRenderer({
 
   const { bodyClasses, childLayers } = extractBodyLayer(resolvedLayers);
   const hasLayers = childLayers.length > 0;
+  const shouldInjectSiteAuthRuntime = Boolean(
+    siteAuth && (page.settings?.requireSiteLogin || hasSiteAuthLayer(resolvedLayers))
+  );
 
   // Generate CSS for initial animation states to prevent flickering
   const { css: initialAnimationCSS, hiddenLayerInfo } = generateInitialAnimationCSS(resolvedLayers);
@@ -346,6 +369,16 @@ export default async function PageRenderer({
 
       {/* Page-specific custom head code — React 19 hoists meta/link/style/title to <head> */}
       {pageCustomCodeHead && renderRootLayoutHeadCode(pageCustomCodeHead, 'page-head')}
+
+      {shouldInjectSiteAuthRuntime && siteAuth && (
+        <>
+          <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" />
+          <script src="/xxiv-site-auth.js" defer />
+          <meta name="xxiv-site-id" content={siteAuth.siteId} />
+          <meta name="xxiv-supabase-url" content={siteAuth.supabaseUrl} />
+          <meta name="xxiv-supabase-key" content={siteAuth.supabaseAnonKey} />
+        </>
+      )}
 
       {/* Strip native browser appearance from form elements so Tailwind classes apply */}
       <style

@@ -3,7 +3,7 @@
 import { requireAuthUser, createDashboardClient } from '@/lib/xxiv/server-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { createToken } from '@/lib/repositories/mcpTokenRepository';
-import { createXxivSiteRecord, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
+import { createXxivSiteRecord, queueSiteThumbnailGeneration, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
 import { buildXxivSiteUrl } from '@/lib/url-utils';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -17,6 +17,7 @@ async function provisionXxivSite(userId: string, name: string, requestHeaders: H
   }
 
   const site = await createXxivSiteRecord(userId, name);
+  queueSiteThumbnailGeneration(site.id, site.name);
   const mcpToken = await createToken(`${name.trim()} AI Builder`, {
     ownerUserId: userId,
     isSystemGenerated: true,

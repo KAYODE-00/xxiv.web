@@ -633,6 +633,7 @@ export interface PageSettings {
     enabled: boolean;
     password: string;
   };
+  requireSiteLogin?: boolean;
   seo?: {
     image: StringAssetId | FieldVariable | null; // Asset ID or Field Variable (image field)
     title: string;

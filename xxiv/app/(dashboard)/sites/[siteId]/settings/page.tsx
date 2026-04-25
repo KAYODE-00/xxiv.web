@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getSiteSettings } from '@/app/(dashboard)/actions/sites';
 import SiteDomainSettings from './site-domain-settings';
+import SiteMembersSettings from './site-members-settings';
 
 export default async function SiteSettingsPage({
   params,
@@ -40,6 +41,10 @@ export default async function SiteSettingsPage({
               publish_status: site.publish_status ?? 'unpublished',
             }}
           />
+
+          <div className="mt-6">
+            <SiteMembersSettings siteId={site.id} />
+          </div>
         </div>
       </main>
     );

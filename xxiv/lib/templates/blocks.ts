@@ -10,6 +10,7 @@ import { generateId, cloneDeep } from '@/lib/utils';
 import { structureTemplates } from './structure';
 import { contentTemplates } from './content';
 import { actionTemplates } from './actions';
+import { authTemplates } from './auth';
 import { mediaTemplates } from './media';
 import { formTemplates } from './forms';
 import { utilityTemplates } from './utilities';
@@ -20,6 +21,7 @@ const blocks = {
   ...structureTemplates,
   ...contentTemplates,
   ...actionTemplates,
+  ...authTemplates,
   ...mediaTemplates,
   ...formTemplates,
   ...utilityTemplates,
@@ -243,7 +245,7 @@ export function getBlocksByCategory(category: 'structure' | 'content' | 'actions
     case 'media':
       return Object.keys(mediaTemplates);
     case 'forms':
-      return Object.keys(formTemplates);
+      return [...Object.keys(formTemplates), ...Object.keys(authTemplates)];
     case 'utilities':
       return Object.keys(utilityTemplates);
     default:

@@ -15,6 +15,7 @@ export const STORAGE_FOLDERS = {
   AVATARS: 'avatars',
   COMPONENTS: 'components',
   TEMPLATES: 'templates',
+  SITES: 'sites',
   FONTS: 'fonts',
 } as const;
 

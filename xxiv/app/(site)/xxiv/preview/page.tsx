@@ -43,7 +43,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
           </p>
           <Link
             href="/xxiv"
-            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
+            className="inline-block rounded-lg bg-primary px-8 py-3 font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Open Builder →
           </Link>

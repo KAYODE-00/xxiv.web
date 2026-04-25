@@ -31,6 +31,36 @@ function formatCreatedDate(iso: string | null) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+function getSiteInitials(name: string | null | undefined) {
+  const parts = (name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  if (parts.length === 0) return 'X';
+  return parts.map((part) => part[0]?.toUpperCase() || '').join('');
+}
+
+function getSiteCardGradient(name: string | null | undefined) {
+  const gradients = [
+    'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+    'linear-gradient(135deg, #111827 0%, #1f2937 100%)',
+    'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+    'linear-gradient(135deg, #042f2e 0%, #134e4a 100%)',
+    'linear-gradient(135deg, #1c1917 0%, #292524 100%)',
+    'linear-gradient(135deg, #172554 0%, #1d4ed8 100%)',
+  ];
+
+  const input = name || 'xxiv';
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = input.charCodeAt(index) + ((hash << 5) - hash);
+  }
+
+  return gradients[Math.abs(hash) % gradients.length];
+}
+
 export default function DashboardClient({
   user,
   initialSites,
@@ -446,13 +476,52 @@ function SiteCard({
         }}
       >
         {!site.thumbnail_url ? (
-          <div style={{ fontSize: 56, fontWeight: 700, color: '#444' }}>
-            {site.name?.trim()?.[0]?.toUpperCase() || 'X'}
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: getSiteCardGradient(site.name),
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
+                backgroundSize: '24px 24px',
+                opacity: 0.45,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                width: 180,
+                height: 180,
+                borderRadius: 999,
+                background: 'rgba(255,255,255,0.08)',
+                filter: 'blur(2px)',
+                top: -36,
+                right: -24,
+              }}
+            />
+            <div style={{ position: 'relative', fontSize: 56, fontWeight: 700, color: '#fff', letterSpacing: '-0.04em' }}>
+              {getSiteInitials(site.name)}
+            </div>
+            <div style={{ position: 'relative', marginTop: 10, fontSize: 12, letterSpacing: '0.28em', color: 'rgba(255,255,255,0.55)' }}>
+              XXIV
+            </div>
           </div>
         ) : (
           <img
             src={site.thumbnail_url}
             alt={site.name}
+            loading="lazy"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         )}

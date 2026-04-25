@@ -6,6 +6,8 @@ import PasswordForm from '@/components/PasswordForm';
 import { fetchGlobalPageSettingsForSite } from '@/lib/generate-page-metadata';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
 import { getScopedSettingByKey } from '@/lib/repositories/settingsRepository';
+import { enforceSiteLogin } from '@/lib/xxiv/site-auth-guard';
+import { getSupabasePublicConfig } from '@/lib/xxiv/site-context';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -50,55 +52,60 @@ export default async function DynamicHome({ searchParams }: DynamicHomeProps) {
     return  redirect('/dashboard');
   }
 
-  const folders = await fetchFoldersForAuth(true);
-  const protectionCheck = getPasswordProtection(data.page, folders, null);
+  if (data.page.settings?.requireSiteLogin) {
+    await enforceSiteLogin(data.page.settings, xxivSiteId, '/');
+  } else {
+    const folders = await fetchFoldersForAuth(true);
+    const protectionCheck = getPasswordProtection(data.page, folders, null);
 
-  if (protectionCheck.isProtected) {
-    const authCookie = await parseAuthCookie();
-    const protection = getPasswordProtection(data.page, folders, authCookie);
+    if (protectionCheck.isProtected) {
+      const authCookie = await parseAuthCookie();
+      const protection = getPasswordProtection(data.page, folders, authCookie);
 
-    if (!protection.isUnlocked) {
-      const errorPageData = await fetchErrorPage(401, true);
-      const publishedCSS = await getScopedSettingByKey('published_css', xxivSiteId);
+      if (!protection.isUnlocked) {
+        const errorPageData = await fetchErrorPage(401, true);
+        const publishedCSS = await getScopedSettingByKey('published_css', xxivSiteId);
 
-      if (errorPageData) {
-        const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
+        if (errorPageData) {
+          const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
+
+          return (
+            <PageRenderer
+              page={errorPage}
+              layers={errorPageLayers.layers || []}
+              components={errorComponents}
+              generatedCss={publishedCSS}
+              passwordProtection={{
+                pageId: protection.protectedBy === 'page' ? protection.protectedById : undefined,
+                folderId: protection.protectedBy === 'folder' ? protection.protectedById : undefined,
+                redirectUrl: '/',
+                isPublished: true,
+              }}
+            />
+          );
+        }
 
         return (
-          <PageRenderer
-            page={errorPage}
-            layers={errorPageLayers.layers || []}
-            components={errorComponents}
-            generatedCss={publishedCSS}
-            passwordProtection={{
-              pageId: protection.protectedBy === 'page' ? protection.protectedById : undefined,
-              folderId: protection.protectedBy === 'folder' ? protection.protectedById : undefined,
-              redirectUrl: '/',
-              isPublished: true,
-            }}
-          />
+          <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="text-center max-w-md px-4">
+              <h1 className="text-6xl font-bold text-gray-900 mb-4">401</h1>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Password Protected</h2>
+              <p className="text-gray-600 mb-8">Enter the password to continue.</p>
+              <PasswordForm
+                pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
+                folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
+                redirectUrl="/"
+                isPublished={true}
+              />
+            </div>
+          </div>
         );
       }
-
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-white">
-          <div className="text-center max-w-md px-4">
-            <h1 className="text-6xl font-bold text-gray-900 mb-4">401</h1>
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Password Protected</h2>
-            <p className="text-gray-600 mb-8">Enter the password to continue.</p>
-            <PasswordForm
-              pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
-              folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
-              redirectUrl="/"
-              isPublished={true}
-            />
-          </div>
-        </div>
-      );
     }
   }
 
   const globalSettings = await fetchGlobalPageSettingsForSite(xxivSiteId);
+  const siteAuth = xxivSiteId ? await getSupabasePublicConfig() : null;
 
   return (
     <PageRenderer
@@ -114,6 +121,7 @@ export default async function DynamicHome({ searchParams }: DynamicHomeProps) {
       globalCustomCodeHead={globalSettings.globalCustomCodeHead}
       globalCustomCodeBody={globalSettings.globalCustomCodeBody}
       xxivBadge={globalSettings.xxivBadge}
+      siteAuth={siteAuth && xxivSiteId ? { siteId: xxivSiteId, supabaseUrl: siteAuth.url, supabaseAnonKey: siteAuth.anonKey } : null}
     />
   );
 }
