@@ -15,7 +15,7 @@ import { SplitText } from 'gsap/SplitText';
 
 import { buildGsapProps, addTweenToTimeline, createSplitTextAnimation, generateInitialAnimationCSS } from '@/lib/animation-utils';
 import { getCurrentBreakpoint } from '@/lib/breakpoint-utils';
-import type { Layer, LayerInteraction, Breakpoint } from '@/types';
+import type { Layer, LayerInteraction, Breakpoint, InteractionAction } from '@/types';
 
 // Register GSAP plugins
 if (typeof window !== 'undefined') {
@@ -61,7 +61,101 @@ function shouldRunOnBreakpoint(interaction: LayerInteraction, breakpoint: Breakp
 
 /** Get element by layer ID */
 function getElement(layerId: string): HTMLElement | null {
-  return document.querySelector(`[data-layer-id="${layerId}"]`);
+  return document.querySelector(`[data-layer-id="${layerId}"]`) || document.getElementById(layerId);
+}
+
+function isGsapInteraction(interaction: LayerInteraction): boolean {
+  return !interaction.actionType || interaction.actionType === 'gsap';
+}
+
+async function executeInteractionAction(action: InteractionAction | undefined): Promise<void> {
+  if (!action) return;
+
+  if (action.type === 'navigate') {
+    if (!action.url) return;
+    window.open(action.url, action.target);
+    return;
+  }
+
+  if (action.type === 'show-hide') {
+    const element = getElement(action.targetLayerId);
+    if (!element) return;
+
+    const isHidden = window.getComputedStyle(element).display === 'none';
+    const nextState =
+      action.action === 'toggle'
+        ? (isHidden ? 'show' : 'hide')
+        : action.action;
+
+    const showElement = () => {
+      element.style.removeProperty('display');
+      element.removeAttribute('hidden');
+    };
+
+    if (nextState === 'show') {
+      showElement();
+
+      if (action.transition === 'fade') {
+        gsap.fromTo(element, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3, clearProps: 'opacity,visibility' });
+      } else if (action.transition === 'slide') {
+        gsap.fromTo(element, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.3, clearProps: 'opacity,visibility,transform' });
+      }
+      return;
+    }
+
+    if (action.transition === 'fade') {
+      gsap.to(element, {
+        autoAlpha: 0,
+        duration: 0.3,
+        onComplete: () => {
+          element.style.display = 'none';
+          gsap.set(element, { clearProps: 'opacity,visibility' });
+        },
+      });
+      return;
+    }
+
+    if (action.transition === 'slide') {
+      gsap.to(element, {
+        autoAlpha: 0,
+        y: 16,
+        duration: 0.3,
+        onComplete: () => {
+          element.style.display = 'none';
+          gsap.set(element, { clearProps: 'opacity,visibility,transform' });
+        },
+      });
+      return;
+    }
+
+    element.style.display = 'none';
+    return;
+  }
+
+  if (action.type === 'api-call') {
+    const requestInit: RequestInit = {
+      method: action.method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    };
+
+    if ((action.method === 'POST' || action.method === 'PUT') && action.body) {
+      requestInit.body = action.body;
+    }
+
+    await fetch(action.url, requestInit);
+    return;
+  }
+
+  if (action.type === 'custom-js') {
+    try {
+      const runner = new Function('gsap', action.code);
+      runner(gsap);
+    } catch (error) {
+      console.error('Custom JS error:', error);
+    }
+  }
 }
 
 /**
@@ -366,17 +460,34 @@ export default function AnimationInitializer({ layers, injectInitialCSS }: Anima
         return tl;
       };
 
+      const runAction = () => executeInteractionAction(interaction.action);
+
       switch (trigger) {
         case 'load': {
           // Skip if breakpoint restriction not met
           if (!shouldRunOnBreakpoint(interaction, currentBreakpoint)) break;
 
-          const timeline = getTimeline();
-          timeline?.play();
+          if (isGsapInteraction(interaction)) {
+            const timeline = getTimeline();
+            timeline?.play();
+          } else {
+            void runAction();
+          }
           break;
         }
 
         case 'click': {
+          if (!isGsapInteraction(interaction)) {
+            const handleClick = () => {
+              if (!shouldRunOnBreakpoint(interaction, getCurrentBreakpoint())) return;
+              void runAction();
+            };
+
+            triggerElement.addEventListener('click', handleClick);
+            cleanupRef.current.push(() => triggerElement.removeEventListener('click', handleClick));
+            break;
+          }
+
           let isForward = true;
           const isLooped = (interaction.timeline?.repeat ?? 0) !== 0;
 
@@ -411,6 +522,17 @@ export default function AnimationInitializer({ layers, injectInitialCSS }: Anima
         }
 
         case 'hover': {
+          if (!isGsapInteraction(interaction)) {
+            const handleMouseEnter = () => {
+              if (!shouldRunOnBreakpoint(interaction, getCurrentBreakpoint())) return;
+              void runAction();
+            };
+
+            triggerElement.addEventListener('mouseenter', handleMouseEnter);
+            cleanupRef.current.push(() => triggerElement.removeEventListener('mouseenter', handleMouseEnter));
+            break;
+          }
+
           const handleMouseEnter = () => {
             // Check breakpoint at trigger time for interactive triggers
             if (!shouldRunOnBreakpoint(interaction, getCurrentBreakpoint())) return;
@@ -438,20 +560,30 @@ export default function AnimationInitializer({ layers, injectInitialCSS }: Anima
           if (!shouldRunOnBreakpoint(interaction, currentBreakpoint)) break;
 
           const scrollStart = interaction.timeline?.scrollStart || 'top 80%';
-          const toggleActions = interaction.timeline?.toggleActions || 'play none none none';
+          const scrollTrigger = isGsapInteraction(interaction)
+            ? (() => {
+                const toggleActions = interaction.timeline?.toggleActions || 'play none none none';
+                const timeline = getTimeline();
+                if (!timeline) return null;
 
-          // toggleActions requires timeline upfront
-          const timeline = getTimeline();
-          if (!timeline) break;
+                return ScrollTrigger.create({
+                  trigger: triggerElement,
+                  start: scrollStart,
+                  toggleActions,
+                  animation: timeline as any,
+                });
+              })()
+            : ScrollTrigger.create({
+                trigger: triggerElement,
+                start: scrollStart,
+                onEnter: () => {
+                  void runAction();
+                },
+              });
 
-          const scrollTrigger = ScrollTrigger.create({
-            trigger: triggerElement,
-            start: scrollStart,
-            toggleActions,
-            animation: timeline as any,
-          });
-
-          cleanupRef.current.push(() => scrollTrigger.kill());
+          if (scrollTrigger) {
+            cleanupRef.current.push(() => scrollTrigger.kill());
+          }
           break;
         }
 
@@ -459,23 +591,37 @@ export default function AnimationInitializer({ layers, injectInitialCSS }: Anima
           // Skip if breakpoint restriction not met
           if (!shouldRunOnBreakpoint(interaction, currentBreakpoint)) break;
 
-          // Scrub animations require timeline upfront
-          const timeline = getTimeline();
-          if (!timeline) break;
-
           const scrollStart = interaction.timeline?.scrollStart || 'top bottom';
           const scrollEnd = interaction.timeline?.scrollEnd || 'bottom top';
-          const scrub = interaction.timeline?.scrub ?? 1;
+          const scrollTrigger = isGsapInteraction(interaction)
+            ? (() => {
+                const timeline = getTimeline();
+                if (!timeline) return null;
 
-          const scrollTrigger = ScrollTrigger.create({
-            trigger: triggerElement,
-            start: scrollStart,
-            end: scrollEnd,
-            scrub,
-            animation: timeline,
-          });
+                const scrub = interaction.timeline?.scrub ?? 1;
+                return ScrollTrigger.create({
+                  trigger: triggerElement,
+                  start: scrollStart,
+                  end: scrollEnd,
+                  scrub,
+                  animation: timeline,
+                });
+              })()
+            : ScrollTrigger.create({
+                trigger: triggerElement,
+                start: scrollStart,
+                end: scrollEnd,
+                onEnter: () => {
+                  void runAction();
+                },
+                onEnterBack: () => {
+                  void runAction();
+                },
+              });
 
-          cleanupRef.current.push(() => scrollTrigger.kill());
+          if (scrollTrigger) {
+            cleanupRef.current.push(() => scrollTrigger.kill());
+          }
           break;
         }
       }

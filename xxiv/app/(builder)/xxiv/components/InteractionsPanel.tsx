@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -70,7 +71,16 @@ import {
 import type { TriggerType, PropertyType } from '@/lib/animation-utils';
 
 // 4. Types
-import type { Layer, LayerInteraction, InteractionTimeline, InteractionTween, TweenProperties, Breakpoint } from '@/types';
+import type {
+  Layer,
+  LayerInteraction,
+  InteractionTimeline,
+  InteractionTween,
+  TweenProperties,
+  Breakpoint,
+  InteractionAction,
+  InteractionActionType,
+} from '@/types';
 import { BREAKPOINTS, BREAKPOINT_VALUES } from '@/lib/breakpoint-utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -86,6 +96,49 @@ interface InteractionsPanelProps {
     shouldRefresh?: boolean;
   }) => void;
   onSelectLayer?: (layerId: string) => void; // Callback to select a layer in the editor
+}
+
+const INTERACTION_ACTION_OPTIONS: Array<{
+  type: InteractionActionType;
+  label: string;
+  description: string;
+}> = [
+  { type: 'navigate', label: 'Navigate', description: 'Open another page or URL.' },
+  { type: 'show-hide', label: 'Show/Hide', description: 'Control another layer on the page.' },
+  { type: 'api-call', label: 'API Call', description: 'Send a request when the trigger runs.' },
+  { type: 'custom-js', label: 'Custom JS', description: 'Run custom code on the published site.' },
+  { type: 'gsap', label: 'Animation', description: 'Use the existing GSAP animation editor.' },
+];
+
+function getDefaultInteractionAction(actionType: Exclude<InteractionActionType, 'gsap'>, layers: Layer[]): InteractionAction {
+  switch (actionType) {
+    case 'navigate':
+      return {
+        type: 'navigate',
+        url: '/',
+        target: '_self',
+      };
+    case 'show-hide':
+      return {
+        type: 'show-hide',
+        targetLayerId: layers[0]?.id || '',
+        action: 'toggle',
+        transition: 'fade',
+      };
+    case 'api-call':
+      return {
+        type: 'api-call',
+        method: 'GET',
+        url: '',
+        body: '{}',
+        onSuccess: 'show-element',
+      };
+    case 'custom-js':
+      return {
+        type: 'custom-js',
+        code: "console.log('interaction fired')",
+      };
+  }
 }
 
 // Sortable animation item component
@@ -568,7 +621,21 @@ export default function InteractionsPanel({
   // Memoize interactions to prevent unnecessary re-renders
   const interactions = useMemo(() => triggerLayer.interactions || [], [triggerLayer.interactions]);
   const selectedInteraction = interactions.find((i) => i.id === selectedInteractionId);
+  const selectedActionType: InteractionActionType = selectedInteraction?.actionType || 'gsap';
   const usedTriggers = useMemo(() => new Set(interactions.map(i => i.trigger)), [interactions]);
+  const availableActionLayers = useMemo(() => {
+    const flattened: Layer[] = [];
+    const walk = (layers: Layer[]) => {
+      layers.forEach((layer) => {
+        flattened.push(layer);
+        if (layer.children?.length) {
+          walk(layer.children);
+        }
+      });
+    };
+    walk(allLayers);
+    return flattened.filter((layer) => layer.id !== triggerLayer.id && layer.name !== 'body');
+  }, [allLayers, triggerLayer.id]);
 
   // Find selected tween
   const selectedTween =
@@ -875,6 +942,50 @@ export default function InteractionsPanel({
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
     },
     [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]
+  );
+
+  const handleUpdateInteraction = useCallback(
+    (updates: Partial<LayerInteraction>) => {
+      if (!selectedInteraction) return;
+
+      const updatedInteractions = updateInteractionById(
+        interactions,
+        selectedInteractionId!,
+        (interaction) => ({
+          ...interaction,
+          ...updates,
+        })
+      );
+
+      onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
+    },
+    [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]
+  );
+
+  const handleSetActionType = useCallback(
+    (actionType: InteractionActionType) => {
+      if (!selectedInteraction) return;
+
+      clearAllPreviewStyles();
+
+      if (actionType === 'gsap') {
+        handleUpdateInteraction({
+          actionType: 'gsap',
+          action: undefined,
+        });
+        return;
+      }
+
+      const existingAction = selectedInteraction.action?.type === actionType
+        ? selectedInteraction.action
+        : getDefaultInteractionAction(actionType, availableActionLayers);
+
+      handleUpdateInteraction({
+        actionType,
+        action: existingAction,
+      });
+    },
+    [selectedInteraction, handleUpdateInteraction, availableActionLayers, clearAllPreviewStyles]
   );
 
   // Add new tween for the currently selected layer
@@ -1242,7 +1353,7 @@ export default function InteractionsPanel({
             </div>
 
             {/* Loop - only show for non-scroll triggers */}
-            {['click', 'hover'].includes(selectedInteraction.trigger) && (
+            {selectedActionType === 'gsap' && ['click', 'hover'].includes(selectedInteraction.trigger) && (
               <div className="grid grid-cols-3 items-center">
                 <Label variant="muted">Effect</Label>
                 <div className="col-span-2">
@@ -1417,34 +1528,35 @@ export default function InteractionsPanel({
                       </div>
                     </div>
 
-                    {/* Smoothing Slider */}
-                    <div className="grid grid-cols-3 items-center">
-                      <Label variant="muted">Smoothing</Label>
-                      <div className="h-7 col-span-2 flex items-center">
-                        <Slider
-                          value={[typeof selectedInteraction.timeline?.scrub === 'number' ? selectedInteraction.timeline.scrub : (selectedInteraction.timeline?.scrub === true ? 0 : 1)]}
-                          min={0}
-                          max={2}
-                          step={0.1}
-                          onValueChange={([value]) => {
-                            handleUpdateTimeline({ scrub: value === 0 ? true : value });
-                          }}
-                          className="flex-1"
-                        />
-                        <span className="text-xs text-muted-foreground w-8 text-right">
-                          {typeof selectedInteraction.timeline?.scrub === 'number'
-                            ? `${selectedInteraction.timeline.scrub}s`
-                            : selectedInteraction.timeline?.scrub === true ? '0s' : '1s'}
-                        </span>
+                    {selectedActionType === 'gsap' && (
+                      <div className="grid grid-cols-3 items-center">
+                        <Label variant="muted">Smoothing</Label>
+                        <div className="h-7 col-span-2 flex items-center">
+                          <Slider
+                            value={[typeof selectedInteraction.timeline?.scrub === 'number' ? selectedInteraction.timeline.scrub : (selectedInteraction.timeline?.scrub === true ? 0 : 1)]}
+                            min={0}
+                            max={2}
+                            step={0.1}
+                            onValueChange={([value]) => {
+                              handleUpdateTimeline({ scrub: value === 0 ? true : value });
+                            }}
+                            className="flex-1"
+                          />
+                          <span className="text-xs text-muted-foreground w-8 text-right">
+                            {typeof selectedInteraction.timeline?.scrub === 'number'
+                              ? `${selectedInteraction.timeline.scrub}s`
+                              : selectedInteraction.timeline?.scrub === true ? '0s' : '1s'}
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </>
                 )}
               </>
             )}
 
             {/* Toggle Actions - only show for scroll-into-view */}
-            {selectedInteraction.trigger === 'scroll-into-view' && (
+            {selectedActionType === 'gsap' && selectedInteraction.trigger === 'scroll-into-view' && (
               <>
                 {(() => {
                   const toggleActions = selectedInteraction.timeline?.toggleActions || 'play none none none';
@@ -1578,12 +1690,299 @@ export default function InteractionsPanel({
                 })()}
               </>
             )}
+            <Separator className="my-1.5" />
+
+            <div className="flex flex-col gap-2">
+              <Label>What should happen?</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {INTERACTION_ACTION_OPTIONS.map((option) => (
+                  <Button
+                    key={option.type}
+                    variant={selectedActionType === option.type ? 'default' : 'secondary'}
+                    className="h-auto min-h-16 flex-col items-start gap-1 px-3 py-2 text-left"
+                    onClick={() => handleSetActionType(option.type)}
+                  >
+                    <span>{option.label}</span>
+                    <span
+                      className={cn(
+                        'text-xs',
+                        selectedActionType === option.type ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                      )}
+                    >
+                      {option.description}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {selectedActionType === 'navigate' && (() => {
+              const action = selectedInteraction.action;
+              if (!action || action.type !== 'navigate') return null;
+
+              return (
+                <div className="flex flex-col gap-2 rounded-lg border bg-secondary/20 p-3">
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <Label variant="muted">URL</Label>
+                  <div className="col-span-2">
+                    <Input
+                      value={action.url}
+                      onChange={(e) => handleUpdateInteraction({
+                        action: {
+                          type: 'navigate',
+                          url: e.target.value,
+                          target: action.target,
+                        },
+                      })}
+                      placeholder="/about or https://example.com"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <Label variant="muted">Open in</Label>
+                  <div className="col-span-2">
+                    <Select
+                      value={action.target}
+                      onValueChange={(value: '_self' | '_blank') => handleUpdateInteraction({
+                        action: {
+                          type: 'navigate',
+                          url: action.url,
+                          target: value,
+                        },
+                      })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_self">Same tab</SelectItem>
+                        <SelectItem value="_blank">New tab</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              );
+            })()}
+
+            {selectedActionType === 'show-hide' && (() => {
+              const action = selectedInteraction.action;
+              if (!action || action.type !== 'show-hide') return null;
+
+              return (
+                <div className="flex flex-col gap-2 rounded-lg border bg-secondary/20 p-3">
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <Label variant="muted">Target</Label>
+                  <div className="col-span-2">
+                    <Select
+                      value={action.targetLayerId || availableActionLayers[0]?.id || ''}
+                      onValueChange={(value) => handleUpdateInteraction({
+                        action: {
+                          type: 'show-hide',
+                          targetLayerId: value,
+                          action: action.action,
+                          transition: action.transition,
+                        },
+                      })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select layer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableActionLayers.map((layer) => (
+                          <SelectItem key={layer.id} value={layer.id}>
+                            {getLayerName(layer)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <Label variant="muted">Action</Label>
+                  <div className="col-span-2">
+                    <Select
+                      value={action.action}
+                      onValueChange={(value: 'show' | 'hide' | 'toggle') => handleUpdateInteraction({
+                        action: {
+                          type: 'show-hide',
+                          targetLayerId: action.targetLayerId,
+                          action: value,
+                          transition: action.transition,
+                        },
+                      })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="show">Show</SelectItem>
+                        <SelectItem value="hide">Hide</SelectItem>
+                        <SelectItem value="toggle">Toggle</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <Label variant="muted">Transition</Label>
+                  <div className="col-span-2">
+                    <Select
+                      value={action.transition}
+                      onValueChange={(value: 'instant' | 'fade' | 'slide') => handleUpdateInteraction({
+                        action: {
+                          type: 'show-hide',
+                          targetLayerId: action.targetLayerId,
+                          action: action.action,
+                          transition: value,
+                        },
+                      })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="instant">Instant</SelectItem>
+                        <SelectItem value="fade">Fade</SelectItem>
+                        <SelectItem value="slide">Slide</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              );
+            })()}
+
+            {selectedActionType === 'api-call' && (() => {
+              const action = selectedInteraction.action;
+              if (!action || action.type !== 'api-call') return null;
+
+              return (
+                <div className="flex flex-col gap-2 rounded-lg border bg-secondary/20 p-3">
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <Label variant="muted">Method</Label>
+                  <div className="col-span-2">
+                    <Select
+                      value={action.method}
+                      onValueChange={(value: 'GET' | 'POST' | 'PUT' | 'DELETE') => handleUpdateInteraction({
+                        action: {
+                          type: 'api-call',
+                          method: value,
+                          url: action.url,
+                          body: action.body,
+                          onSuccess: action.onSuccess,
+                        },
+                      })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="GET">GET</SelectItem>
+                        <SelectItem value="POST">POST</SelectItem>
+                        <SelectItem value="PUT">PUT</SelectItem>
+                        <SelectItem value="DELETE">DELETE</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <Label variant="muted">URL</Label>
+                  <div className="col-span-2">
+                    <Input
+                      value={action.url}
+                      onChange={(e) => handleUpdateInteraction({
+                        action: {
+                          type: 'api-call',
+                          method: action.method,
+                          url: e.target.value,
+                          body: action.body,
+                          onSuccess: action.onSuccess,
+                        },
+                      })}
+                      placeholder="https://api.example.com/submit"
+                    />
+                  </div>
+                </div>
+                {(action.method === 'POST' || action.method === 'PUT') && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <Label variant="muted" className="pt-2">Body</Label>
+                    <div className="col-span-2">
+                      <Textarea
+                        value={action.body || ''}
+                        onChange={(e) => handleUpdateInteraction({
+                          action: {
+                            type: 'api-call',
+                            method: action.method,
+                            url: action.url,
+                            body: e.target.value,
+                            onSuccess: action.onSuccess,
+                          },
+                        })}
+                        className="min-h-24 font-mono text-xs"
+                        placeholder='{"name":"XXIV"}'
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <Label variant="muted">On success</Label>
+                  <div className="col-span-2">
+                    <Select
+                      value={action.onSuccess || 'show-element'}
+                      onValueChange={(value) => handleUpdateInteraction({
+                        action: {
+                          type: 'api-call',
+                          method: action.method,
+                          url: action.url,
+                          body: action.body,
+                          onSuccess: value,
+                        },
+                      })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="show-element">Show element</SelectItem>
+                        <SelectItem value="run-animation">Run animation</SelectItem>
+                        <SelectItem value="navigate">Navigate</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              );
+            })()}
+
+            {selectedActionType === 'custom-js' && (() => {
+              const action = selectedInteraction.action;
+              if (!action || action.type !== 'custom-js') return null;
+
+              return (
+                <div className="flex flex-col gap-2 rounded-lg border bg-secondary/20 p-3">
+                <p className="text-xs text-muted-foreground">
+                  Custom JS runs on the published site only.
+                </p>
+                <Textarea
+                  value={action.code}
+                  onChange={(e) => handleUpdateInteraction({
+                    action: {
+                      type: 'custom-js',
+                      code: e.target.value,
+                    },
+                  })}
+                  className="min-h-32 font-mono text-xs"
+                  placeholder={"// Access the element via:\n// const el = document.getElementById('...')"}
+                />
+              </div>
+              );
+            })()}
           </div>
         </div>
       )}
 
       {/* Tweens Section - Show when interaction is selected */}
-      {selectedInteraction && (
+      {selectedInteraction && selectedActionType === 'gsap' && (
         <div className="border-t">
           <header className="py-5 flex justify-between">
             <span className="font-medium">Animations</span>
@@ -1677,7 +2076,7 @@ export default function InteractionsPanel({
       )}
 
       {/* Tween Settings - Only show when tween is selected */}
-      {selectedInteraction && selectedTween && (
+      {selectedInteraction && selectedActionType === 'gsap' && selectedTween && (
         <div className="border-t">
           <header className="py-5 flex justify-between">
             <span className="font-medium">Animation settings</span>

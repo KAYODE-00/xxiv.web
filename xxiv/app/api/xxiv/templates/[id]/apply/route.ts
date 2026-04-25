@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cloneDeep, generateId } from '@/lib/utils';
 import { getImportedTemplateById } from '@/lib/services/templateService';
+import { remapInteractionAction } from '@/lib/interaction-utils';
 import type { Layer } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +31,7 @@ function reassignLayerTreeIds(layers: Layer[]): Layer[] {
         interactions: layer.interactions.map((interaction) => ({
           ...interaction,
           id: generateId('int'),
+          action: remapInteractionAction(interaction.action, (layerId) => idMap.get(layerId) || layerId),
           tweens: interaction.tweens.map((tween) => ({
             ...tween,
             id: generateId('twn'),

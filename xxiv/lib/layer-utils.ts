@@ -17,6 +17,7 @@ import { parseMultiReferenceValue } from '@/lib/collection-utils';
 import { getInheritedValue } from '@/lib/tailwind-class-mapper';
 import { cloneDeep } from 'lodash';
 import { layerHasLink, hasLinkInTree, hasRichTextLinks } from '@/lib/link-utils';
+import { remapInteractionAction } from '@/lib/interaction-utils';
 
 // Alias for backwards compatibility within this file
 const hasLinkSettings = layerHasLink;
@@ -1710,6 +1711,9 @@ export function regenerateInteractionIds(
   return interactions.map(interaction => ({
     ...interaction,
     id: generateId('int'), // Regenerate interaction ID
+    action: remapInteractionAction(interaction.action, (layerId) =>
+      layerIdMap?.has(layerId) ? layerIdMap.get(layerId)! : layerId
+    ),
     tweens: interaction.tweens.map(tween => ({
       ...tween,
       id: generateId('twn'), // Regenerate tween ID
@@ -2161,6 +2165,7 @@ function remapInteractionLayerIds(
 
   return interactions.map(interaction => ({
     ...interaction,
+    action: remapInteractionAction(interaction.action, (layerId) => idMap.get(layerId) || layerId),
     tweens: interaction.tweens.map(tween => ({
       ...tween,
       layer_id: idMap.get(tween.layer_id) || tween.layer_id,
@@ -2205,6 +2210,7 @@ function transformLayersForInstance(
       transformedLayer.interactions = layer.interactions.map(interaction => ({
         ...interaction,
         id: `${instanceLayerId}_${interaction.id}`,
+        action: remapInteractionAction(interaction.action, (layerId) => idMap.get(layerId) || layerId),
         tweens: interaction.tweens.map(tween => ({
           ...tween,
           layer_id: idMap.get(tween.layer_id) || tween.layer_id,

@@ -5,6 +5,7 @@
  */
 
 import type { Layer, Component, ComponentVariable, ComponentVariableValue, LayerVariables } from '@/types';
+import { remapInteractionAction } from '@/lib/interaction-utils';
 
 /**
  * Remap collection_layer_id in a FieldVariable using the ID map.
@@ -222,6 +223,7 @@ export function transformLayerIdsForInstance(layers: Layer[], instanceLayerId: s
       transformedLayer.interactions = layer.interactions.map(interaction => ({
         ...interaction,
         id: `${instanceLayerId}-${interaction.id}`,
+        action: remapInteractionAction(interaction.action, (layerId) => idMap.get(layerId) || layerId),
         tweens: interaction.tweens.map(tween => ({
           ...tween,
           layer_id: idMap.get(tween.layer_id) || tween.layer_id,
@@ -587,6 +589,11 @@ export function resolveComponents(
           resolvedInteractions = resolvedInteractions.map(interaction => ({
             ...interaction,
             id: `${layer.id}-${interaction.id}`,
+            action: remapInteractionAction(interaction.action, (targetLayerId) =>
+              targetLayerId === componentContent.id
+                ? layer.id
+                : `${layer.id}-${targetLayerId}`
+            ),
             tweens: interaction.tweens.map(tween => ({
               ...tween,
               layer_id: tween.layer_id === componentContent.id

@@ -15,6 +15,7 @@ import { mediaTemplates } from './media';
 import { formTemplates } from './forms';
 import { utilityTemplates } from './utilities';
 import { layoutTemplates } from './layouts';
+import { remapInteractionAction } from '@/lib/interaction-utils';
 
 // Merge all template categories
 const blocks = {
@@ -63,6 +64,9 @@ export function instantiateTemplate(template: LayerTemplate): Layer {
           interactions: currentLayer.interactions.map(interaction => ({
             ...interaction,
             id: generateId('int'),
+            action: remapInteractionAction(interaction.action, (layerId) =>
+              idMap.has(layerId) ? idMap.get(layerId)! : layerId
+            ),
             tweens: interaction.tweens.map(tween => ({
               ...tween,
               id: generateId('twn'),
@@ -114,6 +118,9 @@ export function instantiateTemplate(template: LayerTemplate): Layer {
         interactions: processedLayer.interactions.map(interaction => ({
           ...interaction,
           id: generateId('int'),
+          action: remapInteractionAction(interaction.action, (layerId) =>
+            localIdMap.has(layerId) ? localIdMap.get(layerId)! : layerId
+          ),
           tweens: interaction.tweens.map(tween => ({
             ...tween,
             id: generateId('twn'),

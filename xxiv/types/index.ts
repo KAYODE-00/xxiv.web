@@ -274,9 +274,50 @@ export interface LayerStyle {
 export interface LayerInteraction {
   id: string;
   trigger: 'click' | 'hover' | 'scroll-into-view' | 'while-scrolling' | 'load';
+  actionType?: InteractionActionType;
+  action?: InteractionAction;
   timeline: InteractionTimeline;
   tweens: InteractionTween[];
 }
+
+export type InteractionActionType =
+  | 'gsap'
+  | 'navigate'
+  | 'show-hide'
+  | 'api-call'
+  | 'custom-js';
+
+export interface NavigateAction {
+  type: 'navigate';
+  url: string;
+  target: '_self' | '_blank';
+}
+
+export interface ShowHideAction {
+  type: 'show-hide';
+  targetLayerId: string;
+  action: 'show' | 'hide' | 'toggle';
+  transition: 'instant' | 'fade' | 'slide';
+}
+
+export interface ApiCallAction {
+  type: 'api-call';
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  url: string;
+  body?: string;
+  onSuccess?: string;
+}
+
+export interface CustomJsAction {
+  type: 'custom-js';
+  code: string;
+}
+
+export type InteractionAction =
+  | NavigateAction
+  | ShowHideAction
+  | ApiCallAction
+  | CustomJsAction;
 
 export interface InteractionTimeline {
   breakpoints: Breakpoint[];

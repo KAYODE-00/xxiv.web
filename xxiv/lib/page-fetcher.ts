@@ -36,6 +36,7 @@ import { getMapIframeProps, DEFAULT_MAP_SETTINGS } from '@/lib/map-utils';
 import { getMapboxAccessToken, getGoogleMapsEmbedApiKey } from '@/lib/map-server';
 import { getAssetsByIds } from '@/lib/repositories/assetRepository';
 import { isVirtualAssetField, findDisplayField } from '@/lib/collection-field-utils';
+import { remapInteractionAction } from '@/lib/interaction-utils';
 import type { FieldVariable, AssetVariable, DynamicTextVariable, LinkSettings } from '@/types';
 import type { DesignColorVariable } from '@/types';
 
@@ -1521,6 +1522,9 @@ function remapLayerIdsForCollectionItem(layer: Layer, suffix: string): Layer {
         ...interaction,
         // Make interaction ID unique so AnimationInitializer caches separate timelines per item
         id: `${interaction.id}${suffix}`,
+        action: remapInteractionAction(interaction.action, (layerId) =>
+          originalIds.has(layerId) ? `${layerId}${suffix}` : layerId
+        ),
         tweens: interaction.tweens.map(tween => ({
           ...tween,
           layer_id: originalIds.has(tween.layer_id)
