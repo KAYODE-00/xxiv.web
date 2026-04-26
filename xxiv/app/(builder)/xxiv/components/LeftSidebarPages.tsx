@@ -359,19 +359,57 @@ export default function LeftSidebarPages({
       settings: data.settings,
     };
 
-    // Update in background
-    const result = await updatePage(editingPage.id, pageUpdates);
+    const isTempPage = editingPage.id.startsWith('temp-page-');
+
+    // Update existing page, or wait for temp-page creation to resolve.
+    let result = await updatePage(editingPage.id, pageUpdates);
+
+    // If the optimistic temp page never made it to the backend, create it now
+    // using the values the user actually entered in the form.
+    if (result.error && isTempPage) {
+      const createResult = await createPage({
+        name: data.name,
+        slug: data.slug,
+        is_published: data.is_published ?? editingPage.is_published ?? false,
+        page_folder_id: data.page_folder_id ?? editingPage.page_folder_id ?? null,
+        order: data.order ?? editingPage.order ?? 0,
+        depth: data.depth ?? editingPage.depth ?? 0,
+        is_index: data.is_index ?? editingPage.is_index ?? false,
+        is_dynamic: data.is_dynamic ?? editingPage.is_dynamic ?? false,
+        error_page: data.error_page ?? editingPage.error_page ?? null,
+        settings: data.settings ?? editingPage.settings ?? {},
+      });
+
+      if (createResult.error || !createResult.success || !createResult.data) {
+        const errorMessage = createResult.error || result.error || 'Failed to create page';
+        console.error('Failed to create page from page settings:', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      setSelectedItemId(createResult.data.id);
+      selectedItemIdRef.current = createResult.data.id;
+      navigateToNextPage(createResult.data.id, 'body');
+
+      if (livePageUpdates) {
+        livePageUpdates.broadcastPageCreate(createResult.data);
+      }
+
+      setShowPageSettings(false);
+      setEditingPage(null);
+      return;
+    }
 
     if (result.error) {
       console.error('Failed to save page:', result.error);
-    } else {
-      // Broadcast page update to other collaborators
-      if (livePageUpdates) {
-        livePageUpdates.broadcastPageUpdate(editingPage.id, pageUpdates);
-      }
-      setShowPageSettings(false);
-      setEditingPage(null);
+      throw new Error(result.error);
     }
+
+    // Broadcast page update to other collaborators
+    if (livePageUpdates) {
+      livePageUpdates.broadcastPageUpdate(editingPage.id, pageUpdates);
+    }
+    setShowPageSettings(false);
+    setEditingPage(null);
   };
 
   
