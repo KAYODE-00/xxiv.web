@@ -179,7 +179,7 @@ export default function LeftSidebarPages({
           selectedItemIdRef.current = result.data.id;
         }
 
-        navigateToNextPage(result.data.id, urlState.layerId || 'body');
+        navigateToNextPage(result.data.id, 'body');
 
         // Automatically open Page settings panel for the newly created page
         setEditingPage(result.data);

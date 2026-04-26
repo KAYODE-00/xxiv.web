@@ -345,11 +345,9 @@ export function useLiveLayerUpdates(
 
   const broadcastLayerAdd = useCallback((pageId: string, parentLayerId: string | null, layerName: string, newLayer: Layer) => {
     if (!channelRef.current) {
-      console.warn('[COLLAB] Cannot broadcast layer add - channel not ready');
       return;
     }
     if (!currentUserId) {
-      console.warn('[COLLAB] Cannot broadcast layer add - currentUserId not set');
       return;
     }
 
