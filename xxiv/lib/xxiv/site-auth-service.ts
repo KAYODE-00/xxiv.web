@@ -35,8 +35,76 @@ export async function signupSiteUser(
     return { user: null, error: 'Site not found' };
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const { data: listedUsers } = await admin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+
+  const existingAuthUser = (listedUsers?.users || []).find(
+    (user) => (user.email || '').trim().toLowerCase() === normalizedEmail,
+  );
+
+  if (existingAuthUser) {
+    const { data: existingProfile } = await admin
+      .from('site_user_profiles')
+      .select('id, site_id, role')
+      .eq('id', existingAuthUser.id)
+      .maybeSingle();
+
+    if (existingProfile?.site_id === siteId && existingProfile.role === 'site_user') {
+      return { user: null, error: 'An account with this email already exists for this site' };
+    }
+
+    if (existingProfile?.site_id && existingProfile.site_id !== siteId) {
+      return { user: null, error: 'This email is already registered on another site' };
+    }
+
+    const { data: updatedUser, error: updateUserError } = await admin.auth.admin.updateUserById(
+      existingAuthUser.id,
+      {
+        password,
+        email_confirm: true,
+        user_metadata: {
+          ...(existingAuthUser.user_metadata || {}),
+          full_name: fullName || '',
+          role: 'site_user',
+          site_id: siteId,
+        },
+      },
+    );
+
+    if (updateUserError || !updatedUser.user) {
+      return { user: null, error: updateUserError?.message || 'Signup failed' };
+    }
+
+    const { error: profileError } = await admin
+      .from('site_user_profiles')
+      .upsert({
+        id: existingAuthUser.id,
+        site_id: siteId,
+        role: 'site_user',
+        full_name: fullName || null,
+        metadata: {},
+        is_active: true,
+      });
+
+    if (profileError) {
+      return { user: null, error: 'Failed to create profile' };
+    }
+
+    return {
+      user: {
+        id: updatedUser.user.id,
+        email: updatedUser.user.email,
+        full_name: fullName || null,
+      },
+    };
+  }
+
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
-    email,
+    email: normalizedEmail,
     password,
     email_confirm: true,
     user_metadata: {
