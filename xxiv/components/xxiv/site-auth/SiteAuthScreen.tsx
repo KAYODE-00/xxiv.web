@@ -296,8 +296,8 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
         return;
       }
 
-      setMessage('Password updated. Redirecting to login...');
-      setTimeout(() => router.replace(`/xxiv-auth/login${authQueryString}`), 800);
+      setMessage('Password updated. Redirecting back to your site...');
+      setTimeout(() => router.replace(postAuthRedirect), 800);
     } catch (resetError) {
       setError(resetError instanceof Error ? resetError.message : 'Could not update password');
     } finally {

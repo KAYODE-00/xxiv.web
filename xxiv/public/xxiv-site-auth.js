@@ -2,6 +2,8 @@
   const siteId = document.querySelector('meta[name="xxiv-site-id"]')?.content;
   const supabaseUrl = document.querySelector('meta[name="xxiv-supabase-url"]')?.content;
   const supabaseKey = document.querySelector('meta[name="xxiv-supabase-key"]')?.content;
+  const siteAuthQuery = siteId ? `?site_id=${encodeURIComponent(siteId)}` : '';
+  const siteHomeHref = siteId ? `/?xxiv_site_id=${encodeURIComponent(siteId)}` : '/';
 
   if (!siteId || !supabaseUrl || !supabaseKey || !window.supabase) {
     return;
@@ -34,7 +36,7 @@
       if (!siteUser) {
         element.style.display = 'none';
         const prompt = document.createElement('div');
-        prompt.innerHTML = '<div style="padding:24px;border:1px solid rgba(255,255,255,0.1);border-radius:16px;text-align:center"><p style="margin:0;color:inherit">Please log in to view this content.</p><a href="/xxiv-auth/login" style="display:inline-block;margin-top:16px;padding:10px 22px;background:#000;color:#fff;border-radius:10px;text-decoration:none">Log In</a></div>';
+        prompt.innerHTML = `<div style="padding:24px;border:1px solid rgba(255,255,255,0.1);border-radius:16px;text-align:center"><p style="margin:0;color:inherit">Please log in to view this content.</p><a href="/xxiv-auth/login${siteAuthQuery}" style="display:inline-block;margin-top:16px;padding:10px 22px;background:#000;color:#fff;border-radius:10px;text-decoration:none">Log In</a></div>`;
         element.parentNode?.insertBefore(prompt, element.nextSibling);
       }
     }
@@ -45,7 +47,7 @@
         : 'Log In';
 
       if (!siteUser && element.tagName.toLowerCase() === 'a') {
-        element.setAttribute('href', '/xxiv-auth/login');
+        element.setAttribute('href', `/xxiv-auth/login${siteAuthQuery}`);
       }
     }
 
@@ -53,7 +55,7 @@
       element.addEventListener('click', async (event) => {
         event.preventDefault();
         await client.auth.signOut();
-        window.location.href = '/';
+        window.location.href = siteHomeHref;
       });
     }
   });
