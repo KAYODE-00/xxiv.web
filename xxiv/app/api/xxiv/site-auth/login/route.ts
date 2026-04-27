@@ -72,13 +72,19 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       user: {
         id: data.user.id,
         email: data.user.email,
       },
     });
+    response.cookies.set('xxiv_site_id', siteId, {
+      path: '/',
+      httpOnly: false,
+      sameSite: 'lax',
+    });
+    return response;
   } catch (error) {
     return NextResponse.json(
       {

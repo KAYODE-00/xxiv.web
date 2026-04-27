@@ -14,6 +14,13 @@ type SiteUserProfile = {
   created_at: string;
 };
 
+type SiteUserMembership = {
+  site_id: string;
+  user_id: string;
+  role: string;
+  created_at?: string | null;
+};
+
 export async function signupSiteUser(
   siteId: string,
   email: string,
@@ -51,25 +58,18 @@ export async function signupSiteUser(
   );
 
   if (existingAuthUser) {
-    const { data: existingProfile } = await admin
-      .from('site_user_profiles')
-      .select('id, site_id, role')
-      .eq('id', existingAuthUser.id)
+    const { data: existingMembership } = await admin
+      .from('xxiv_site_members')
+      .select('site_id, user_id, role')
+      .eq('user_id', existingAuthUser.id)
+      .eq('site_id', siteId)
       .maybeSingle();
 
-    if (existingProfile?.site_id === siteId && existingProfile.role === 'site_user') {
+    if (existingMembership?.site_id === siteId && existingMembership.role === 'site_user') {
       return {
         user: null,
         error: 'An account with this email already exists for this site. Log in instead, or use Forgot password if you do not remember the password.',
         errorCode: 'account_exists_same_site',
-      };
-    }
-
-    if (existingProfile?.site_id && existingProfile.site_id !== siteId) {
-      return {
-        user: null,
-        error: 'This email is already registered on another site',
-        errorCode: 'account_exists_other_site',
       };
     }
 
@@ -81,14 +81,24 @@ export async function signupSiteUser(
         user_metadata: {
           ...(existingAuthUser.user_metadata || {}),
           full_name: fullName || '',
-          role: 'site_user',
-          site_id: siteId,
         },
       },
     );
 
     if (updateUserError || !updatedUser.user) {
       return { user: null, error: updateUserError?.message || 'Signup failed', errorCode: 'signup_failed' };
+    }
+
+    const { error: membershipError } = await admin
+      .from('xxiv_site_members')
+      .upsert({
+        site_id: siteId,
+        user_id: existingAuthUser.id,
+        role: 'site_user',
+      }, { onConflict: 'site_id,user_id' });
+
+    if (membershipError) {
+      return { user: null, error: 'Failed to create site membership', errorCode: 'signup_failed' };
     }
 
     const { error: profileError } = await admin
@@ -103,7 +113,7 @@ export async function signupSiteUser(
       });
 
     if (profileError) {
-      return { user: null, error: 'Failed to create profile', errorCode: 'signup_failed' };
+      return { user: null, error: 'Failed to save user profile', errorCode: 'signup_failed' };
     }
 
     return {
@@ -121,8 +131,6 @@ export async function signupSiteUser(
     email_confirm: true,
     user_metadata: {
       full_name: fullName || '',
-      role: 'site_user',
-      site_id: siteId,
     },
   });
 
@@ -137,6 +145,19 @@ export async function signupSiteUser(
     return { user: null, error: authError?.message || 'Signup failed', errorCode: 'signup_failed' };
   }
 
+  const { error: membershipError } = await admin
+    .from('xxiv_site_members')
+    .insert({
+      site_id: siteId,
+      user_id: authData.user.id,
+      role: 'site_user',
+    });
+
+  if (membershipError) {
+    await admin.auth.admin.deleteUser(authData.user.id);
+    return { user: null, error: 'Failed to create site membership', errorCode: 'signup_failed' };
+  }
+
   const { error: profileError } = await admin
     .from('site_user_profiles')
     .insert({
@@ -149,6 +170,11 @@ export async function signupSiteUser(
     });
 
   if (profileError) {
+    await admin
+      .from('xxiv_site_members')
+      .delete()
+      .eq('site_id', siteId)
+      .eq('user_id', authData.user.id);
     await admin.auth.admin.deleteUser(authData.user.id);
     return { user: null, error: 'Failed to create profile', errorCode: 'signup_failed' };
   }
@@ -171,20 +197,41 @@ export async function validateSiteUserSession(
     return { valid: false };
   }
 
-  const { data: profile } = await admin
-    .from('site_user_profiles')
-    .select('*')
-    .eq('id', userId)
+  const { data: membership } = await admin
+    .from('xxiv_site_members')
+    .select('site_id, user_id, role, created_at')
+    .eq('user_id', userId)
     .eq('site_id', siteId)
     .eq('role', 'site_user')
-    .eq('is_active', true)
     .maybeSingle();
 
-  if (!profile) {
+  if (!membership) {
     return { valid: false };
   }
 
-  return { valid: true, user: profile as SiteUserProfile };
+  const { data: profile } = await admin
+    .from('site_user_profiles')
+    .select('full_name, avatar_url, metadata, is_active, created_at')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profile && profile.is_active === false) {
+    return { valid: false };
+  }
+
+  return {
+    valid: true,
+    user: {
+      id: userId,
+      site_id: siteId,
+      role: membership.role,
+      full_name: profile?.full_name ?? null,
+      avatar_url: profile?.avatar_url ?? null,
+      metadata: (profile?.metadata as Record<string, unknown> | null) ?? null,
+      is_active: profile?.is_active ?? true,
+      created_at: profile?.created_at || membership.created_at || new Date().toISOString(),
+    },
+  };
 }
 
 export async function getValidatedCurrentSiteUser(siteId: string) {
@@ -223,12 +270,21 @@ export async function listSiteUsers(siteId: string, builderId: string) {
     return { users: [], error: 'Unauthorized' };
   }
 
-  const { data: profiles } = await admin
-    .from('site_user_profiles')
-    .select('id, site_id, role, full_name, avatar_url, metadata, is_active, created_at')
+  const { data: memberships } = await admin
+    .from('xxiv_site_members')
+    .select('site_id, user_id, role, created_at')
     .eq('site_id', siteId)
     .eq('role', 'site_user')
     .order('created_at', { ascending: false });
+
+  const memberIds = (memberships || []).map((membership) => membership.user_id);
+
+  const { data: profiles } = memberIds.length > 0
+    ? await admin
+      .from('site_user_profiles')
+      .select('id, full_name, avatar_url, metadata, is_active, created_at')
+      .in('id', memberIds)
+    : { data: [] as Array<{ id: string; full_name: string | null; avatar_url: string | null; metadata: Record<string, unknown> | null; is_active: boolean; created_at: string }> };
 
   const { data: listedUsers } = await admin.auth.admin.listUsers({
     page: 1,
@@ -238,12 +294,23 @@ export async function listSiteUsers(siteId: string, builderId: string) {
   const emailById = new Map<string, string | undefined>(
     (listedUsers?.users || []).map((user) => [user.id, user.email]),
   );
+  const profileById = new Map((profiles || []).map((profile) => [profile.id, profile]));
 
   return {
-    users: (profiles || []).map((profile) => ({
-      ...profile,
-      email: emailById.get(profile.id) || null,
-    })),
+    users: (memberships || []).map((membership) => {
+      const profile = profileById.get(membership.user_id);
+      return {
+        id: membership.user_id,
+        site_id: membership.site_id,
+        role: membership.role,
+        full_name: profile?.full_name ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+        metadata: profile?.metadata ?? null,
+        is_active: profile?.is_active ?? true,
+        created_at: profile?.created_at || membership.created_at || new Date().toISOString(),
+        email: emailById.get(membership.user_id) || null,
+      };
+    }),
   };
 }
 
@@ -270,7 +337,11 @@ export async function updateSiteUser(
   }
 
   if (updates.action === 'delete') {
-    const { error } = await admin.auth.admin.deleteUser(userId);
+    const { error } = await admin
+      .from('xxiv_site_members')
+      .delete()
+      .eq('site_id', siteId)
+      .eq('user_id', userId);
     return error ? { error: error.message } : { success: true };
   }
 

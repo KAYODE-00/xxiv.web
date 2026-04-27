@@ -73,6 +73,14 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
     const query = params.toString();
     return query ? `?${query}` : '';
   }, [redirectTo, siteIdFromQuery]);
+  const postAuthRedirect = useMemo(() => {
+    if (redirectTo && redirectTo !== '/') {
+      return redirectTo;
+    }
+
+    const targetSiteId = site?.id || siteIdFromQuery;
+    return targetSiteId ? `/?xxiv_site_id=${encodeURIComponent(targetSiteId)}` : '/';
+  }, [redirectTo, site?.id, siteIdFromQuery]);
 
   useEffect(() => {
     let active = true;
@@ -171,7 +179,7 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
         return;
       }
 
-      router.replace(redirectTo);
+      router.replace(postAuthRedirect);
     } catch (loginError) {
       setError(
         loginError instanceof Error
@@ -230,7 +238,7 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
         return;
       }
 
-      router.replace(redirectTo);
+      router.replace(postAuthRedirect);
     } catch (signupError) {
       setError(signupError instanceof Error ? signupError.message : 'Signup failed');
     } finally {
