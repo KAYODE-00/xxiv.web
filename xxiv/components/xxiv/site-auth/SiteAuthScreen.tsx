@@ -46,6 +46,7 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/';
+  const siteIdFromQuery = searchParams.get('site_id') || searchParams.get('xxiv_site_id') || '';
 
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [site, setSite] = useState<SiteContext | null>(null);
@@ -58,15 +59,34 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const authQueryString = useMemo(() => {
+    const params = new URLSearchParams();
+
+    if (redirectTo && redirectTo !== '/') {
+      params.set('redirect', redirectTo);
+    }
+
+    if (siteIdFromQuery) {
+      params.set('site_id', siteIdFromQuery);
+    }
+
+    const query = params.toString();
+    return query ? `?${query}` : '';
+  }, [redirectTo, siteIdFromQuery]);
 
   useEffect(() => {
     let active = true;
 
     void (async () => {
       try {
+        const contextUrl = new URL('/api/xxiv/site-auth/context', window.location.origin);
+        if (siteIdFromQuery) {
+          contextUrl.searchParams.set('site_id', siteIdFromQuery);
+        }
+
         const [client, siteResponse] = await Promise.all([
           createBrowserClient(),
-          fetch('/api/xxiv/site-auth/context'),
+          fetch(contextUrl.toString()),
         ]);
 
         if (!active) return;
@@ -94,7 +114,7 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [siteIdFromQuery]);
 
   useEffect(() => {
     if (mode !== 'reset-password' || !supabase) {
@@ -129,32 +149,35 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
 
   async function handleLogin(event: React.FormEvent) {
     event.preventDefault();
-    if (!supabase || !site) return;
+    if (!site) return;
 
     setLoading(true);
     setError('');
 
     try {
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
+      const response = await fetch('/api/xxiv/site-auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_id: site.id,
+          email: email.trim(),
+          password,
+        }),
       });
 
-      if (authError) {
-        setError(authError.message);
-        return;
-      }
-
-      const validation = await validateMembership(supabase, site.id);
-      if (!validation.valid) {
-        await supabase.auth.signOut();
-        setError(validation.error || 'No account found for this site');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(data.error || 'Login failed');
         return;
       }
 
       router.replace(redirectTo);
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : 'Login failed');
+      setError(
+        loginError instanceof Error
+          ? loginError.message
+          : 'Unable to reach the authentication service',
+      );
     } finally {
       setLoading(false);
     }
@@ -181,23 +204,29 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(data.error || 'Signup failed');
+        if (data.code === 'account_exists_same_site') {
+          setError(data.error || 'This email already has an account. Log in instead, or use Forgot password.');
+        } else if (data.code === 'account_exists_other_site') {
+          setError(data.error || 'This email is already registered on another site.');
+        } else {
+          setError(data.error || 'Signup failed');
+        }
         return;
       }
 
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
+      const loginResponse = await fetch('/api/xxiv/site-auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_id: site.id,
+          email: email.trim(),
+          password,
+        }),
       });
 
-      if (authError) {
-        setError(authError.message);
-        return;
-      }
-
-      const validation = await validateMembership(supabase, site.id);
-      if (!validation.valid) {
-        setError(validation.error || 'No account found for this site');
+      const loginData = await loginResponse.json().catch(() => ({}));
+      if (!loginResponse.ok) {
+        setError(loginData.error || 'Login failed after signup');
         return;
       }
 
@@ -219,7 +248,7 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
 
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/xxiv-auth/reset-password`,
+        redirectTo: `${window.location.origin}/xxiv-auth/reset-password${authQueryString}`,
       });
 
       if (resetError) {
@@ -260,7 +289,7 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
       }
 
       setMessage('Password updated. Redirecting to login...');
-      setTimeout(() => router.replace('/xxiv-auth/login'), 800);
+      setTimeout(() => router.replace(`/xxiv-auth/login${authQueryString}`), 800);
     } catch (resetError) {
       setError(resetError instanceof Error ? resetError.message : 'Could not update password');
     } finally {
@@ -297,8 +326,8 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
                 {loading ? 'Signing in...' : 'Log In'}
               </button>
               <div className="flex items-center justify-between gap-4">
-                <Link href={`/xxiv-auth/forgot-password${redirectTo !== '/' ? `?redirect=${encodeURIComponent(redirectTo)}` : ''}`} className={secondaryLinkClassName}>Forgot password?</Link>
-                <Link href={`/xxiv-auth/signup${redirectTo !== '/' ? `?redirect=${encodeURIComponent(redirectTo)}` : ''}`} className={secondaryLinkClassName}>Create account</Link>
+                <Link href={`/xxiv-auth/forgot-password${authQueryString}`} className={secondaryLinkClassName}>Forgot password?</Link>
+                <Link href={`/xxiv-auth/signup${authQueryString}`} className={secondaryLinkClassName}>Create account</Link>
               </div>
             </form>
           )}
@@ -311,7 +340,7 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
               <button className={primaryButtonClassName} type="submit" disabled={loading || !supabase || !site}>
                 {loading ? 'Creating account...' : 'Sign Up'}
               </button>
-              <Link href={`/xxiv-auth/login${redirectTo !== '/' ? `?redirect=${encodeURIComponent(redirectTo)}` : ''}`} className={secondaryLinkClassName}>Already have an account?</Link>
+              <Link href={`/xxiv-auth/login${authQueryString}`} className={secondaryLinkClassName}>Already have an account?</Link>
             </form>
           )}
 
@@ -321,7 +350,7 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
               <button className={primaryButtonClassName} type="submit" disabled={loading || !supabase}>
                 {loading ? 'Sending...' : 'Send Reset Link'}
               </button>
-              <Link href="/xxiv-auth/login" className={secondaryLinkClassName}>Back to login</Link>
+              <Link href={`/xxiv-auth/login${authQueryString}`} className={secondaryLinkClassName}>Back to login</Link>
             </form>
           )}
 

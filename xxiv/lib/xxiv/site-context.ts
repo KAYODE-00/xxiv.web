@@ -20,8 +20,8 @@ export async function getCurrentXxivSiteId(): Promise<string | null> {
   return cookieStore.get('xxiv_site_id')?.value || null;
 }
 
-export async function getCurrentXxivSiteContext(): Promise<CurrentSiteContext | null> {
-  const siteId = await getCurrentXxivSiteId();
+export async function getCurrentXxivSiteContext(siteIdOverride?: string | null): Promise<CurrentSiteContext | null> {
+  const siteId = siteIdOverride || await getCurrentXxivSiteId();
   if (!siteId) {
     return null;
   }

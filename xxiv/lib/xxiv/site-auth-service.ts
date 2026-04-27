@@ -19,10 +19,14 @@ export async function signupSiteUser(
   email: string,
   password: string,
   fullName?: string,
-): Promise<{ user: { id: string; email: string | undefined; full_name: string | null } | null; error?: string }> {
+): Promise<{
+  user: { id: string; email: string | undefined; full_name: string | null } | null;
+  error?: string;
+  errorCode?: 'site_not_found' | 'account_exists_same_site' | 'account_exists_other_site' | 'signup_failed';
+}> {
   const admin = await getSupabaseAdmin();
   if (!admin) {
-    return { user: null, error: 'Supabase not configured' };
+    return { user: null, error: 'Supabase not configured', errorCode: 'signup_failed' };
   }
 
   const { data: site } = await admin
@@ -32,7 +36,7 @@ export async function signupSiteUser(
     .maybeSingle();
 
   if (!site) {
-    return { user: null, error: 'Site not found' };
+    return { user: null, error: 'Site not found', errorCode: 'site_not_found' };
   }
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -54,11 +58,19 @@ export async function signupSiteUser(
       .maybeSingle();
 
     if (existingProfile?.site_id === siteId && existingProfile.role === 'site_user') {
-      return { user: null, error: 'An account with this email already exists for this site' };
+      return {
+        user: null,
+        error: 'An account with this email already exists for this site. Log in instead, or use Forgot password if you do not remember the password.',
+        errorCode: 'account_exists_same_site',
+      };
     }
 
     if (existingProfile?.site_id && existingProfile.site_id !== siteId) {
-      return { user: null, error: 'This email is already registered on another site' };
+      return {
+        user: null,
+        error: 'This email is already registered on another site',
+        errorCode: 'account_exists_other_site',
+      };
     }
 
     const { data: updatedUser, error: updateUserError } = await admin.auth.admin.updateUserById(
@@ -76,7 +88,7 @@ export async function signupSiteUser(
     );
 
     if (updateUserError || !updatedUser.user) {
-      return { user: null, error: updateUserError?.message || 'Signup failed' };
+      return { user: null, error: updateUserError?.message || 'Signup failed', errorCode: 'signup_failed' };
     }
 
     const { error: profileError } = await admin
@@ -91,7 +103,7 @@ export async function signupSiteUser(
       });
 
     if (profileError) {
-      return { user: null, error: 'Failed to create profile' };
+      return { user: null, error: 'Failed to create profile', errorCode: 'signup_failed' };
     }
 
     return {
@@ -116,9 +128,13 @@ export async function signupSiteUser(
 
   if (authError || !authData.user) {
     if (authError?.message?.toLowerCase().includes('already')) {
-      return { user: null, error: 'An account with this email already exists' };
+      return {
+        user: null,
+        error: 'An account with this email already exists. Try logging in or use Forgot password.',
+        errorCode: 'account_exists_same_site',
+      };
     }
-    return { user: null, error: authError?.message || 'Signup failed' };
+    return { user: null, error: authError?.message || 'Signup failed', errorCode: 'signup_failed' };
   }
 
   const { error: profileError } = await admin
@@ -134,7 +150,7 @@ export async function signupSiteUser(
 
   if (profileError) {
     await admin.auth.admin.deleteUser(authData.user.id);
-    return { user: null, error: 'Failed to create profile' };
+    return { user: null, error: 'Failed to create profile', errorCode: 'signup_failed' };
   }
 
   return {

@@ -25,7 +25,18 @@ export async function POST(request: Request) {
   const result = await signupSiteUser(siteId, email, password, fullName || undefined);
 
   if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: 422 });
+    const status = result.errorCode === 'account_exists_same_site'
+      ? 409
+      : result.errorCode === 'account_exists_other_site'
+        ? 409
+        : result.errorCode === 'site_not_found'
+          ? 404
+          : 422;
+
+    return NextResponse.json(
+      { error: result.error, code: result.errorCode || 'signup_failed' },
+      { status },
+    );
   }
 
   return NextResponse.json({ success: true, user: result.user });

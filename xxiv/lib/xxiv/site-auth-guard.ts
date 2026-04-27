@@ -23,6 +23,6 @@ export async function enforceSiteLogin(
 
   const siteUser = await getValidatedCurrentSiteUser(siteId);
   if (!siteUser) {
-    redirect(buildLoginUrl(path));
+    redirect(`${buildLoginUrl(path)}&site_id=${encodeURIComponent(siteId)}`);
   }
 }
