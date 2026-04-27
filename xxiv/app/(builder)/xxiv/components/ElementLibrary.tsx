@@ -158,6 +158,7 @@ const elementCategories: Record<string, string[]> = {
   Actions: ['button'],
   Media: ['image', 'icon', 'video', 'audio'],
   Form: ['form', 'filter', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label'],
+  Authentication: ['auth-login-form', 'auth-signup-form', 'auth-user-greeting', 'auth-logout-btn', 'auth-members-only'],
   Utilities: ['map', 'slider', 'lightbox', 'localeSelector', 'htmlEmbed'],
 };
 
@@ -308,11 +309,11 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
   const [componentToDelete, setComponentToDelete] = useState<Component | null>(null);
   const [deletePreviewInfo, setDeletePreviewInfo] = useState<{ pageCount: number; componentCount: number } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [activeTab, setActiveTab] = React.useState<'elements' | 'layouts' | 'components'>(() => {
+  const [activeTab, setActiveTab] = React.useState<'elements' | 'layouts' | 'components' | 'templates'>(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('elementLibrary-activeTab');
-      if (saved && ['elements', 'layouts', 'components'].includes(saved)) {
-        return saved as 'elements' | 'layouts' | 'components';
+      if (saved && ['elements', 'layouts', 'components', 'templates'].includes(saved)) {
+        return saved as 'elements' | 'layouts' | 'components' | 'templates';
       }
     }
     return 'elements';
@@ -409,7 +410,7 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
   }, [loadTemplateLibrary]);
 
   useEffect(() => {
-    if (activeTab !== 'layouts') return;
+    if (activeTab !== 'templates') return;
 
     let cancelled = false;
     setImportedLoading(true);
@@ -482,8 +483,8 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
   React.useEffect(() => {
     const handleToggle = (event: Event) => {
       const tab = (event as CustomEvent<{ tab?: string }>).detail?.tab;
-      if (tab && ['elements', 'layouts', 'components'].includes(tab)) {
-        setActiveTab(tab as 'elements' | 'layouts' | 'components');
+      if (tab && ['elements', 'layouts', 'components', 'templates'].includes(tab)) {
+        setActiveTab(tab as 'elements' | 'layouts' | 'components' | 'templates');
       }
     };
     window.addEventListener('toggleElementLibrary', handleToggle);
@@ -1844,7 +1845,7 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
         {/* Tabs */}
         <Tabs
           value={activeTab} onValueChange={(value) => {
-            const tab = value as 'elements' | 'layouts' | 'components';
+            const tab = value as 'elements' | 'layouts' | 'components' | 'templates';
             setActiveTab(tab);
             tabRefs.current[tab]?.scrollTo(0, 0);
           }}
@@ -1856,6 +1857,7 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
                 <TabsTrigger value="elements">Elements</TabsTrigger>
                 <TabsTrigger value="layouts">Layouts</TabsTrigger>
                 <TabsTrigger value="components">Components</TabsTrigger>
+                <TabsTrigger value="templates">Templates</TabsTrigger>
               </TabsList>
             </div>
 
@@ -2000,67 +2002,6 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
                 </div>
                   );
                 })}
-
-                <div className="mt-2 flex flex-col pt-6">
-                  <div className="mb-3 flex items-center justify-between px-1">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Template Library
-                    </span>
-                    <div className="flex gap-1">
-                      {(['all', 'layout', 'block', 'element'] as const).map((filterValue) => (
-                        <button
-                          key={filterValue}
-                          onClick={() => setImportedFilter(filterValue)}
-                          className={cn(
-                            'rounded px-2 py-0.5 text-xs',
-                            importedFilter === filterValue
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                          )}
-                        >
-                          {filterValue}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {importedLoading ? (
-                    <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-                      Loading library...
-                    </div>
-                  ) : null}
-
-                  {!importedLoading && importedTemplates.length === 0 ? (
-                    <div className="px-3 py-8 text-center">
-                      <div className="mb-1 text-sm font-medium text-muted-foreground">
-                        Template library not configured yet
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {importedError || 'Import HTML templates to get started'}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {!importedLoading && importedTemplates.length > 0 ? (
-                    <div className="flex flex-col gap-1 px-2">
-                      {importedTemplates
-                        .filter((template) => importedFilter === 'all' ? true : template.meta?.type === importedFilter)
-                        .map((template) => (
-                          <button
-                            key={template.id}
-                            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
-                            onClick={() => handleAddImportedTemplate(template)}
-                          >
-                            <Icon name="layout" className="size-4 shrink-0 text-muted-foreground" />
-                            <span className="truncate">{template.name}</span>
-                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                              {template.category}
-                            </span>
-                          </button>
-                        ))}
-                    </div>
-                  ) : null}
-                </div>
               </div>
             )}
           </TabsContent>
@@ -2159,6 +2100,72 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
                 </div>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent
+            value="templates" forceMount
+            ref={(el) => { tabRefs.current.templates = el; }} className="flex flex-col overflow-y-auto flex-1 px-4 pb-4 no-scrollbar"
+          >
+            <div className="flex flex-col pb-5 pt-5">
+              <div className="mb-3 flex items-center justify-between px-1">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Template Library
+                </span>
+                <div className="flex gap-1">
+                  {(['all', 'layout', 'block', 'element'] as const).map((filterValue) => (
+                    <button
+                      key={filterValue}
+                      onClick={() => setImportedFilter(filterValue)}
+                      className={cn(
+                        'rounded px-2 py-0.5 text-xs',
+                        importedFilter === filterValue
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {filterValue}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {importedLoading ? (
+                <div className="px-3 py-8 text-center text-xs text-muted-foreground">
+                  Loading library...
+                </div>
+              ) : null}
+
+              {!importedLoading && importedTemplates.length === 0 ? (
+                <div className="px-3 py-8 text-center">
+                  <div className="mb-1 text-sm font-medium text-muted-foreground">
+                    Template library not configured yet
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {importedError || 'Import HTML templates to get started'}
+                  </div>
+                </div>
+              ) : null}
+
+              {!importedLoading && importedTemplates.length > 0 ? (
+                <div className="flex flex-col gap-1 px-2">
+                  {importedTemplates
+                    .filter((template) => importedFilter === 'all' ? true : template.meta?.type === importedFilter)
+                    .map((template) => (
+                      <button
+                        key={template.id}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
+                        onClick={() => handleAddImportedTemplate(template)}
+                      >
+                        <Icon name="layout" className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{template.name}</span>
+                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                          {template.category}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              ) : null}
+            </div>
           </TabsContent>
         </Tabs>
 

@@ -84,13 +84,13 @@ export const authTemplates: Record<string, BlockTemplate> = {
   },
   'auth-logout-btn': {
     icon: 'log-out',
-    name: 'Logout Button',
+    name: 'Sign Out Element',
     template: {
       name: 'button',
-      customName: 'Logout button',
+      customName: 'Sign out element',
       classes: ['rounded-[12px]', 'bg-black', 'px-[18px]', 'py-[12px]', 'text-white'],
       settings: { customAttributes: { 'data-xxiv-auth': 'logout' } },
-      variables: { text: createStaticTextVariable('Log out') },
+      variables: { text: createStaticTextVariable('Sign out') },
     },
   },
   'auth-members-only': {
