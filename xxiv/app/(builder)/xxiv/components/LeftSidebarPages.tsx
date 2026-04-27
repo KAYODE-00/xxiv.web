@@ -170,7 +170,9 @@ export default function LeftSidebarPages({
       settings,
     });
 
-    // Handle the result asynchronously
+    // Handle the result asynchronously. Avoid re-opening or re-seeding the
+    // settings panel here, because the user may already be editing the temp
+    // page and a late response can overwrite in-progress form state.
     createPromise.then(result => {
       if (result.success && result.data && result.tempId) {
         // Update selection to use real ID (the temp page should already be selected)
@@ -180,11 +182,6 @@ export default function LeftSidebarPages({
         }
 
         navigateToNextPage(result.data.id, 'body');
-
-        // Automatically open Page settings panel for the newly created page
-        setEditingPage(result.data);
-        setShowPageSettings(true);
-        setShowFolderSettings(false);
 
         // Broadcast page creation to other collaborators
         if (livePageUpdates && result.data) {
@@ -359,45 +356,8 @@ export default function LeftSidebarPages({
       settings: data.settings,
     };
 
-    const isTempPage = editingPage.id.startsWith('temp-page-');
-
     // Update existing page, or wait for temp-page creation to resolve.
-    let result = await updatePage(editingPage.id, pageUpdates);
-
-    // If the optimistic temp page never made it to the backend, create it now
-    // using the values the user actually entered in the form.
-    if (result.error && isTempPage) {
-      const createResult = await createPage({
-        name: data.name,
-        slug: data.slug,
-        is_published: data.is_published ?? editingPage.is_published ?? false,
-        page_folder_id: data.page_folder_id ?? editingPage.page_folder_id ?? null,
-        order: data.order ?? editingPage.order ?? 0,
-        depth: data.depth ?? editingPage.depth ?? 0,
-        is_index: data.is_index ?? editingPage.is_index ?? false,
-        is_dynamic: data.is_dynamic ?? editingPage.is_dynamic ?? false,
-        error_page: data.error_page ?? editingPage.error_page ?? null,
-        settings: data.settings ?? editingPage.settings ?? {},
-      });
-
-      if (createResult.error || !createResult.success || !createResult.data) {
-        const errorMessage = createResult.error || result.error || 'Failed to create page';
-        console.error('Failed to create page from page settings:', errorMessage);
-        throw new Error(errorMessage);
-      }
-
-      setSelectedItemId(createResult.data.id);
-      selectedItemIdRef.current = createResult.data.id;
-      navigateToNextPage(createResult.data.id, 'body');
-
-      if (livePageUpdates) {
-        livePageUpdates.broadcastPageCreate(createResult.data);
-      }
-
-      setShowPageSettings(false);
-      setEditingPage(null);
-      return;
-    }
+    const result = await updatePage(editingPage.id, pageUpdates);
 
     if (result.error) {
       console.error('Failed to save page:', result.error);
