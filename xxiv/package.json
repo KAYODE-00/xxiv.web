@@ -37,6 +37,7 @@
     "migrate:status": "NODE_NO_WARNINGS=1 knex migrate:status --knexfile knexfile.ts",
     "migrate:credentials": "npx ts-node --project tsconfig.json scripts/migrate-credentials.ts",
     "templates:seed": "npx ts-node -r dotenv/config --project tsconfig.json scripts/seed-templates.ts",
+    "templates:seed:professional": "npx ts-node -r dotenv/config --project tsconfig.json scripts/seed-professional-template-pack.ts",
     "fonts:update": "npx ts-node --project tsconfig.json scripts/fetch-google-fonts.ts",
     "prepare": "husky"
   },
