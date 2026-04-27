@@ -13,13 +13,23 @@ const API_BASE = '';
 
 function getXxivSiteQuery(): string {
   if (typeof window === 'undefined') return '';
-  const siteId = new URLSearchParams(window.location.search).get('xxiv_site_id');
+  let siteId = new URLSearchParams(window.location.search).get('xxiv_site_id');
   if (siteId) {
     const encoded = encodeURIComponent(siteId);
     const current = document.cookie.match(/(?:^|;\s*)xxiv_site_id=([^;]*)/);
     const currentValue = current?.[1] ? current[1].trim() : null;
     if (currentValue !== encoded) {
       document.cookie = `xxiv_site_id=${encoded}; Path=/; SameSite=Lax`;
+    }
+  }
+  if (!siteId) {
+    const match = document.cookie.match(/(?:^|;\s*)xxiv_site_id=([^;]*)/);
+    if (match?.[1]) {
+      try {
+        siteId = decodeURIComponent(match[1].trim());
+      } catch {
+        siteId = match[1].trim();
+      }
     }
   }
   return siteId ? `xxiv_site_id=${encodeURIComponent(siteId)}` : '';
@@ -62,7 +72,7 @@ async function apiRequest<T>(
     headers: {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
-      ...(siteId && { 'x-site-id': siteId }), // ✅ NEW (safe)
+      ...(siteId && { 'x-xxiv-site-id': siteId }),
       ...options.headers, // keep last so manual overrides still work
     },
   });

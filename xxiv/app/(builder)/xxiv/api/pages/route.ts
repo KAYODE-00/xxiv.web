@@ -89,7 +89,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const xxivSiteId = searchParams.get('xxiv_site_id');
+    const xxivSiteId =
+      searchParams.get('xxiv_site_id') ||
+      request.headers.get('x-xxiv-site-id') ||
+      request.headers.get('x-site-id') ||
+      request.cookies.get('xxiv_site_id')?.value ||
+      null;
     const body = await request.json();
 
     const {
