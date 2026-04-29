@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { createToken } from '@/lib/repositories/mcpTokenRepository';
 import { createXxivSiteRecord, queueSiteThumbnailGeneration, setXxivSiteHomePage } from '@/lib/xxiv/site-management';
 import { buildXxivSiteUrl } from '@/lib/url-utils';
+import { buildXxivIndexSlug } from '@/lib/xxiv/index-slug';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
@@ -39,7 +40,7 @@ async function provisionXxivSite(userId: string, name: string, requestHeaders: H
     .from('pages')
     .insert({
       name: 'Home',
-      slug: '',
+      slug: buildXxivIndexSlug(site.id),
       page_folder_id: null,
       is_index: true,
       is_dynamic: false,
