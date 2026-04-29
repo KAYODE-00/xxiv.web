@@ -118,15 +118,29 @@ export async function getUserSites() {
 
   if (ownedError) throw ownedError;
 
-  // 2. Fetch sites where user is a collaborator
-  const { data: memberships, error: memberError } = await supabase
-    .from('xxiv_site_members')
-    .select('site_id')
-    .eq('user_id', user.id);
+  const ownedSiteIds = new Set((owned || []).map((site) => site.id));
 
-  if (memberError) throw memberError;
+  // 2. Fetch sites where user is a collaborator.
+  // Do not fail the entire dashboard if collaboration tables or policies are
+  // missing in a partially migrated production environment.
+  let collabSiteIds: string[] = [];
+  try {
+    const { data: memberships, error: memberError } = await supabase
+      .from('xxiv_site_members')
+      .select('site_id')
+      .eq('user_id', user.id);
 
-  const collabSiteIds = (memberships || []).map(m => m.site_id);
+    if (memberError) {
+      console.error('[getUserSites] Membership query error:', memberError);
+    } else {
+      collabSiteIds = (memberships || [])
+        .map((membership) => membership.site_id)
+        .filter((siteId): siteId is string => typeof siteId === 'string' && !ownedSiteIds.has(siteId));
+    }
+  } catch (error) {
+    console.error('[getUserSites] Membership lookup failed:', error);
+  }
+
   let collaborative: any[] = [];
 
   if (collabSiteIds.length > 0) {
@@ -140,16 +154,55 @@ export async function getUserSites() {
     collaborative = collabData || [];
   }
 
-  // 3. Fetch pending invites for user's email
-  const { data: pendingInvites, error: inviteError } = await supabase
-    .from('xxiv_site_invites')
-    .select('*, site:site_id(name, thumbnail_url)')
-    .eq('email', user.email)
-    .eq('status', 'pending');
+  // 3. Fetch pending invites for user's email.
+  // Avoid relationship-select syntax here because production PostgREST schema
+  // cache can lag and crash the whole server render.
+  let pendingInvites: any[] = [];
+  try {
+    const { data: inviteRows, error: inviteError } = await supabase
+      .from('xxiv_site_invites')
+      .select('id, site_id, email, status, created_at')
+      .eq('email', user.email)
+      .eq('status', 'pending');
 
-  if (inviteError) {
-    console.error('[getUserSites] Invite error:', inviteError);
-    throw inviteError;
+    if (inviteError) {
+      console.error('[getUserSites] Invite query error:', inviteError);
+    } else {
+      const inviteSiteIds = Array.from(
+        new Set(
+          (inviteRows || [])
+            .map((invite) => invite.site_id)
+            .filter((siteId): siteId is string => typeof siteId === 'string')
+        )
+      );
+
+      let siteMap = new Map<string, { id: string; name: string; thumbnail_url: string | null }>();
+
+      if (inviteSiteIds.length > 0) {
+        const { data: inviteSites, error: inviteSitesError } = await supabase
+          .from('xxiv_sites')
+          .select('id, name, thumbnail_url')
+          .in('id', inviteSiteIds);
+
+        if (inviteSitesError) {
+          console.error('[getUserSites] Invite site lookup error:', inviteSitesError);
+        } else {
+          siteMap = new Map(
+            (inviteSites || []).map((site) => [
+              site.id,
+              { id: site.id, name: site.name, thumbnail_url: site.thumbnail_url },
+            ])
+          );
+        }
+      }
+
+      pendingInvites = (inviteRows || []).map((invite) => ({
+        ...invite,
+        site: invite.site_id ? siteMap.get(invite.site_id) || null : null,
+      }));
+    }
+  } catch (error) {
+    console.error('[getUserSites] Invite lookup failed:', error);
   }
 
   return {
