@@ -107,10 +107,16 @@ async function buildSiteLiveUrl(
 
 export async function getUserSites() {
   const user = await requireAuthUser();
-  const supabase = await createDashboardClient();
+  const admin = await getSupabaseAdmin();
 
-  // 1. Fetch sites owned by user
-  const { data: owned, error: ownedError } = await supabase
+  if (!admin) {
+    throw new Error('Supabase not configured');
+  }
+
+  // 1. Fetch sites owned by user.
+  // Use the admin client here and scope manually to the authenticated user so
+  // dashboard rendering does not depend on fragile RLS behavior.
+  const { data: owned, error: ownedError } = await admin
     .from('xxiv_sites')
     .select('*')
     .eq('user_id', user.id)
@@ -125,7 +131,7 @@ export async function getUserSites() {
   // missing in a partially migrated production environment.
   let collabSiteIds: string[] = [];
   try {
-    const { data: memberships, error: memberError } = await supabase
+    const { data: memberships, error: memberError } = await admin
       .from('xxiv_site_members')
       .select('site_id')
       .eq('user_id', user.id);
@@ -144,7 +150,7 @@ export async function getUserSites() {
   let collaborative: any[] = [];
 
   if (collabSiteIds.length > 0) {
-    const { data: collabData, error: collabError } = await supabase
+    const { data: collabData, error: collabError } = await admin
       .from('xxiv_sites')
       .select('*')
       .in('id', collabSiteIds)
@@ -159,7 +165,7 @@ export async function getUserSites() {
   // cache can lag and crash the whole server render.
   let pendingInvites: any[] = [];
   try {
-    const { data: inviteRows, error: inviteError } = await supabase
+    const { data: inviteRows, error: inviteError } = await admin
       .from('xxiv_site_invites')
       .select('id, site_id, email, status, created_at')
       .eq('email', user.email)
@@ -179,7 +185,7 @@ export async function getUserSites() {
       let siteMap = new Map<string, { id: string; name: string; thumbnail_url: string | null }>();
 
       if (inviteSiteIds.length > 0) {
-        const { data: inviteSites, error: inviteSitesError } = await supabase
+        const { data: inviteSites, error: inviteSitesError } = await admin
           .from('xxiv_sites')
           .select('id, name, thumbnail_url')
           .in('id', inviteSiteIds);
