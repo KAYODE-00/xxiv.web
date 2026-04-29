@@ -4,7 +4,7 @@ import { createDynamicTextVariable, createStaticTextVariable } from '@/lib/varia
 
 export const authTemplates: Record<string, BlockTemplate> = {
   'auth-login-form': {
-    icon: 'lock',
+    icon: 'form',
     name: 'Login Form',
     template: {
       name: 'div',
@@ -38,7 +38,7 @@ export const authTemplates: Record<string, BlockTemplate> = {
     },
   },
   'auth-signup-form': {
-    icon: 'user-plus',
+    icon: 'plus-circle',
     name: 'Signup Form',
     template: {
       name: 'div',
@@ -72,7 +72,7 @@ export const authTemplates: Record<string, BlockTemplate> = {
     },
   },
   'auth-user-greeting': {
-    icon: 'user',
+    icon: 'text',
     name: 'User Greeting',
     template: {
       name: 'div',
@@ -83,7 +83,7 @@ export const authTemplates: Record<string, BlockTemplate> = {
     },
   },
   'auth-logout-btn': {
-    icon: 'log-out',
+    icon: 'arrow-right',
     name: 'Sign Out Element',
     template: {
       name: 'button',
@@ -94,7 +94,7 @@ export const authTemplates: Record<string, BlockTemplate> = {
     },
   },
   'auth-members-only': {
-    icon: 'shield',
+    icon: 'component',
     name: 'Members Only',
     template: {
       name: 'div',

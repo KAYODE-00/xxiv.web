@@ -9,7 +9,7 @@ import { enforceSiteLogin } from '@/lib/xxiv/site-auth-guard';
 import { getSupabasePublicConfig } from '@/lib/xxiv/site-context';
 import { getSiteBaseUrl } from '@/lib/url-utils';
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
 
 // Static by default for performance, dynamic only when pagination is requested
@@ -109,9 +109,10 @@ export default async function Home({
   // Cache-first homepage path; pagination is served through internal dynamic routes.
   const data = await fetchPublishedHomepage(xxivSiteId);
 
-  // If no published homepage exists, show default landing page
+  // Public published sites should never bounce visitors into the dashboard.
+  // If the site has no published homepage yet, fail as a public 404 instead.
   if (!data || !data.pageLayers) {
-    return   redirect('/dashboard');
+    notFound();
   }
 
   // Load all global settings early so error pages also get global custom code
@@ -202,7 +203,7 @@ export async function generateMetadata({
   // Fetch page and global settings in parallel
   const [data, globalSettings] = await Promise.all([
     fetchPublishedHomepage(xxivSiteId),
-    fetchCachedGlobalSettings(),
+    fetchCachedGlobalSettings(xxivSiteId),
   ]);
 
   if (!data) {

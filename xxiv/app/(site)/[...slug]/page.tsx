@@ -333,6 +333,10 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
+
+  if (slugPath === 'favicon.ico') {
+    notFound();
+  }
   
   // Resolve site context
   const xxivSiteRoute = await resolveXxivSiteFromSlugPath(slug);
@@ -509,7 +513,7 @@ export async function generateMetadata({
   // Fetch page and global settings in parallel
   const [data, globalSettings] = await Promise.all([
     fetchPublishedRouteData(targetSlugPath, xxivSiteId),
-    fetchCachedGlobalSettings(),
+    fetchCachedGlobalSettings(xxivSiteId),
   ]);
 
   if (!data) {
