@@ -507,6 +507,54 @@ export async function openSiteEditor(siteId: string) {
       homePageId = firstPage?.id ?? null;
     }
 
+    if (!homePageId) {
+      const { data: createdHomePage, error: createHomePageError } = await admin
+        .from('pages')
+        .insert({
+          name: 'Home',
+          slug: buildXxivIndexSlug(siteId),
+          page_folder_id: null,
+          is_index: true,
+          is_dynamic: false,
+          depth: 0,
+          order: 0,
+          is_published: false,
+          xxiv_site_id: siteId,
+          settings: {
+            xxiv: {
+              site_id: siteId,
+            },
+          },
+        })
+        .select('id')
+        .single();
+
+      if (createHomePageError) throw createHomePageError;
+
+      homePageId = createdHomePage?.id ?? null;
+
+      if (!homePageId) {
+        throw new Error('Could not create a home page for this site');
+      }
+
+      const { error: createLayersError } = await admin
+        .from('page_layers')
+        .insert({
+          page_id: homePageId,
+          layers: [
+            {
+              id: 'body',
+              name: 'body',
+              classes: '',
+              children: [],
+            },
+          ],
+          is_published: false,
+        });
+
+      if (createLayersError) throw createLayersError;
+    }
+
     if (homePageId) {
       await setXxivSiteHomePage(siteId, homePageId);
       revalidatePath('/dashboard');
