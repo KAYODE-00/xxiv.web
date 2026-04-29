@@ -64,6 +64,7 @@ function getSiteCardGradient(name: string | null | undefined) {
 export default function DashboardClient({
   user,
   initialSites,
+  initialError,
 }: {
   user: { id: string; email?: string | null };
   initialSites: { 
@@ -71,6 +72,7 @@ export default function DashboardClient({
     collaborative: SiteRow[];
     pendingInvites: any[];
   };
+  initialError?: string | null;
 }) {
   const [ownedSites, setOwnedSites] = useState<SiteRow[]>(initialSites?.owned || []);
   const [collabSites, setCollabSites] = useState<SiteRow[]>(initialSites?.collaborative || []);
@@ -79,7 +81,7 @@ export default function DashboardClient({
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<SiteRow | null>(null);
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError || null);
 
   const stats = useMemo(() => {
     const total = ownedSites.length + collabSites.length;
