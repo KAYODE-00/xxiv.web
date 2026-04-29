@@ -462,8 +462,9 @@ export async function removeCustomDomain(siteId: string) {
 }
 
 export async function openSiteEditor(siteId: string) {
-  const user = await requireAuthUser();
+  await requireAuthUser();
   const supabase = await createDashboardClient();
+  const admin = await getSupabaseAdmin();
 
   const { data: site, error } = await supabase
     .from('xxiv_sites')
@@ -473,9 +474,48 @@ export async function openSiteEditor(siteId: string) {
 
   if (error) throw error;
 
-  if (!site?.home_page_id) {
+  let homePageId = site?.home_page_id ?? null;
+
+  if (!homePageId && admin) {
+    const { data: recoveredHomePage, error: recoveryError } = await admin
+      .from('pages')
+      .select('id')
+      .eq('xxiv_site_id', siteId)
+      .eq('is_published', false)
+      .eq('is_index', true)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (recoveryError) throw recoveryError;
+
+    homePageId = recoveredHomePage?.id ?? null;
+
+    if (!homePageId) {
+      const { data: firstPage, error: firstPageError } = await admin
+        .from('pages')
+        .select('id')
+        .eq('xxiv_site_id', siteId)
+        .eq('is_published', false)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (firstPageError) throw firstPageError;
+      homePageId = firstPage?.id ?? null;
+    }
+
+    if (homePageId) {
+      await setXxivSiteHomePage(siteId, homePageId);
+      revalidatePath('/dashboard');
+    }
+  }
+
+  if (!homePageId) {
     throw new Error('No page found for this site');
   }
 
-  redirect('/xxiv/pages/' + site.home_page_id + '?xxiv_site_id=' + siteId);
+  redirect('/xxiv/pages/' + homePageId + '?xxiv_site_id=' + siteId);
 }
