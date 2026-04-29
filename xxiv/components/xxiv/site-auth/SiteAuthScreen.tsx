@@ -124,24 +124,6 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
     };
   }, [siteIdFromQuery]);
 
-  useEffect(() => {
-    if (mode !== 'reset-password' || !supabase) {
-      return;
-    }
-
-    void (async () => {
-      const code = new URL(window.location.href).searchParams.get('code');
-      if (!code) {
-        return;
-      }
-
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeError) {
-        setError(exchangeError.message);
-      }
-    })();
-  }, [mode, supabase]);
-
   const title = useMemo(() => {
     switch (mode) {
       case 'signup':
@@ -255,8 +237,9 @@ export default function SiteAuthScreen({ mode }: { mode: Mode }) {
     setMessage('');
 
     try {
+      const resetPath = `/xxiv-auth/reset-password${authQueryString}`;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/xxiv-auth/reset-password${authQueryString}`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(resetPath)}`,
       });
 
       if (resetError) {

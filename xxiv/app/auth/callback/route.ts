@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { credentials } from '@/lib/credentials';
 import { parseSupabaseConfig } from '@/lib/supabase-config-parser';
 import type { SupabaseConfig } from '@/types';
 
-
-
+type PendingCookie = {
+  name: string;
+  value: string;
+  options?: Record<string, unknown>;
+};
 
 /**
  * GET /auth/callback
  *
  * Handles two flows:
- * 1. OAuth code exchange (Google, etc.) — ?code=...
- * 2. Email magic link / password reset — ?token_hash=...&type=...
+ * 1. OAuth code exchange (Google, etc.) - ?code=...
+ * 2. Email magic link / password reset - ?token_hash=...&type=...
  *
  * On success: redirects to /dashboard
- * On error:   redirects to /login?error=...
+ * On error: redirects to /login?error=...
  */
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -35,36 +37,50 @@ export async function GET(request: NextRequest) {
     }
 
     const parsed = parseSupabaseConfig(config);
-    const cookieStore = await cookies();
+    const cookieJar = new Map(
+      request.cookies.getAll().map((cookie) => [cookie.name, { name: cookie.name, value: cookie.value }]),
+    );
+    const pendingCookies = new Map<string, PendingCookie>();
+
+    const buildRedirectResponse = (path: string) => {
+      const response = NextResponse.redirect(new URL(path, origin));
+
+      pendingCookies.forEach(({ name, value, options }) => {
+        response.cookies.set({ name, value, ...(options ?? {}) });
+      });
+
+      return response;
+    };
 
     const supabase = createServerClient(parsed.projectUrl, parsed.anonKey, {
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          return Array.from(cookieJar.values());
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set({ name, value, ...options });
+            cookieJar.set(name, { name, value });
+            pendingCookies.set(name, {
+              name,
+              value,
+              options: (options as Record<string, unknown> | undefined) ?? undefined,
+            });
           });
         },
       },
     });
 
-    // Flow 1: OAuth code exchange
     if (code) {
       const { error } = await supabase.auth.exchangeCodeForSession(code);
 
       if (error) {
         console.error('[auth/callback] OAuth code exchange failed:', error.message);
-        return NextResponse.redirect(
-          new URL(`/login?error=${encodeURIComponent(error.message)}`, origin)
-        );
+        return buildRedirectResponse(`/login?error=${encodeURIComponent(error.message)}`);
       }
 
-      return NextResponse.redirect(new URL(next, origin));
+      return buildRedirectResponse(next);
     }
 
-    // Flow 2: Email magic link / password reset token
     if (tokenHash && type) {
       const { error } = await supabase.auth.verifyOtp({
         token_hash: tokenHash,
@@ -73,21 +89,17 @@ export async function GET(request: NextRequest) {
 
       if (error) {
         console.error('[auth/callback] Token verification failed:', error.message);
-        return NextResponse.redirect(
-          new URL(`/login?error=${encodeURIComponent(error.message)}`, origin)
-        );
+        return buildRedirectResponse(`/login?error=${encodeURIComponent(error.message)}`);
       }
 
-      // Password reset: send to update-password page
       if (type === 'recovery') {
-        return NextResponse.redirect(new URL('/update-password', origin));
+        return buildRedirectResponse('/update-password');
       }
 
-      return NextResponse.redirect(new URL(next, origin));
+      return buildRedirectResponse(next);
     }
 
-    // No code or token — redirect to login
-    return NextResponse.redirect(new URL('/login', origin));
+    return buildRedirectResponse('/login');
   } catch (error) {
     console.error('[auth/callback] Unexpected error:', error);
     return NextResponse.redirect(new URL('/login?error=server', origin));
